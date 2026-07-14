@@ -1,0 +1,30 @@
+{
+  "name": "@cricket-ai/mcp-server",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "nx": {
+    "name": "mcp-server",
+    "tags": ["type:app", "scope:mcp"],
+    "targets": {
+      "dev": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "tsx src/index.ts",
+          "cwd": "apps/mcp-server"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "dotenv": "^17.2.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.4"
+  }
+}

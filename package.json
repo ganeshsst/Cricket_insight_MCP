@@ -16,7 +16,9 @@
     "db:migrate": "docker compose up -d postgres && nx run database:migrate-local",
     "db:logs": "docker compose logs -f postgres",
     "db:ps": "docker compose ps",
-    "dev:web": "nx dev cricinsights"
+    "dev:web": "nx dev cricinsights",
+    "dev:api": "nx run cricket-api:dev",
+    "dev:mcp": "nx run mcp-server:dev"
   },
   "dependencies": {
     "aws-cdk-lib": "^2.260.0",

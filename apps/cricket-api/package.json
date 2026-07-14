@@ -1,0 +1,55 @@
+{
+  "name": "@cricket-ai/cricket-api",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "nx": {
+    "name": "cricket-api",
+    "tags": ["type:app", "scope:api"],
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "outputs": ["{projectRoot}/dist"],
+        "options": {
+          "command": "tsc -p tsconfig.app.json",
+          "cwd": "apps/cricket-api"
+        }
+      },
+      "dev": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "tsx watch --tsconfig tsconfig.app.json src/main.ts",
+          "cwd": "apps/cricket-api"
+        }
+      },
+      "serve": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "node dist/main.js",
+          "cwd": "apps/cricket-api"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "dev": "tsx watch --tsconfig tsconfig.app.json src/main.ts",
+    "build": "tsc -p tsconfig.app.json",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@cricket-ai/database": "file:../../libs/database",
+    "@nestjs/common": "^11.1.6",
+    "@nestjs/core": "^11.1.6",
+    "@nestjs/platform-express": "^11.1.6",
+    "@nestjs/swagger": "^11.2.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "dotenv": "^17.2.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "tsx": "^4.22.4"
+  }
+}

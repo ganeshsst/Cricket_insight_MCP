@@ -9,8 +9,43 @@ const secrets = new SecretsManagerClient({});
 
 let pool: pg.Pool | undefined;
 
+function stripQuotes(value: string | undefined): string | undefined {
+  return value?.replace(/^"|"$/g, '');
+}
+
+function isRemoteHost(host: string | undefined): boolean {
+  return Boolean(host && host !== 'localhost' && !host.startsWith('127.'));
+}
+
+async function resolvePoolConfig(): Promise<pg.PoolConfig> {
+  const host = process.env.DATABASE_HOST;
+  const databaseName = process.env.DATABASE_NAME;
+  const user = stripQuotes(process.env.DATABASE_USER);
+  const password = stripQuotes(process.env.DATABASE_PASSWORD);
+  const port = Number(process.env.DATABASE_PORT ?? '5432');
+
+  if (host && databaseName && user && password) {
+    return {
+      host,
+      port,
+      user,
+      password,
+      database: databaseName,
+      ...(isRemoteHost(host)
+        ? { ssl: { rejectUnauthorized: false } }
+        : {}),
+    };
+  }
+
+  const connectionString = await resolveDatabaseUrl();
+  return {
+    connectionString,
+    ...(isRemoteHost(host) ? { ssl: { rejectUnauthorized: false } } : {}),
+  };
+}
+
 async function resolveDatabaseUrl(): Promise<string> {
-  const directUrl = process.env.DATABASE_URL;
+  const directUrl = stripQuotes(process.env.DATABASE_URL);
   if (directUrl) {
     return directUrl;
   }
@@ -51,8 +86,7 @@ export async function getPool(): Promise<pg.Pool> {
     return pool;
   }
 
-  const connectionString = await resolveDatabaseUrl();
-  pool = new pg.Pool({ connectionString });
+  pool = new pg.Pool(await resolvePoolConfig());
   return pool;
 }
 

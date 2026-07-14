@@ -29,6 +29,8 @@ Cricket AI is an [Nx](https://nx.dev) monorepo for a cricket data platform. It p
 | `db-migrate-lambda` | `apps/db-migrate-lambda` | Lambda handler that runs Flyway against Aurora |
 | `waitlist-api` | `apps/waitlist-api` | VPC Lambda for waitlist signups in AWS |
 | `cricinsights` | `apps/cricinsights` | Next.js web app (CricInsights landing + local waitlist API) |
+| `cricket-api` | `apps/cricket-api` | NestJS cricket data APIs + Swagger |
+| `mcp-server` | `apps/mcp-server` | MCP tools calling cricket-api |
 | `database` | `libs/database` | Shared DB helpers, client, and Flyway SQL migrations |
 
 ## Prerequisites
@@ -53,6 +55,7 @@ pnpm build
 pnpm db:up
 pnpm db:migrate
 pnpm dev:web                 # CricInsights at http://localhost:4200
+pnpm dev:api                 # Cricket API at http://localhost:3001 (Swagger /docs)
 ```
 
 ## Project structure
