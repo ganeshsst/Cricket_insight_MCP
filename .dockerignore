@@ -1,0 +1,26 @@
+# Dependencies and build output
+node_modules
+**/node_modules
+dist
+**/dist
+.next
+.nx
+cdk.out
+coverage
+*.tsbuildinfo
+
+# Git and local secrets
+.git
+.gitignore
+.env
+.env.*
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Docs and local-only assets (not needed in images)
+local db
+scripts
