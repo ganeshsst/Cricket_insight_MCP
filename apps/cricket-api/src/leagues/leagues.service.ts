@@ -1,12 +1,16 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
 import type {
   BattingLeaderboardRowDto,
   BowlingLeaderboardRowDto,
   LeagueDto,
+  ResolvedSeasonDto,
+  SeasonAwardsDto,
   SeasonCoverageDto,
   SeasonDto,
   SeasonLeaderboardDto,
+  SeasonPlayoffMatchDto,
+  SeasonPlayoffsDto,
   SeasonStandingsDto,
   StandingRowDto,
 } from './dto/league.dto.js';
@@ -29,7 +33,7 @@ export class LeaguesService {
       [`%${q}%`],
     );
 
-    return rows.map((row) => ({
+    return rows.map((row: (typeof rows)[number]) => ({
       sportmonksId: row.sportmonks_id,
       name: row.name,
       code: row.code,
@@ -51,12 +55,35 @@ export class LeaguesService {
       [leagueId],
     );
 
-    return rows.map((row) => ({
+    return rows.map((row: (typeof rows)[number]) => ({
       sportmonksId: row.sportmonks_id,
       name: row.name,
       leagueId: row.league_id,
       leagueName: row.league_name,
     }));
+  }
+
+  async resolveSeasonQuery(q: string): Promise<ResolvedSeasonDto> {
+    const year = q.match(/\b(19|20)\d{2}\b/)?.[0];
+    const leagueQuery = q
+      .replace(/\b(19|20)\d{2}\b/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    const [league] = await this.search(leagueQuery || q);
+    if (!league) {
+      throw new NotFoundException(`League matching "${q}" not found`);
+    }
+
+    const seasons = await this.listSeasons(league.sportmonksId);
+    const season = year
+      ? seasons.find((s) => s.name === year || s.name.includes(year))
+      : seasons[0];
+    if (!season) {
+      throw new NotFoundException(`Season matching "${q}" not found`);
+    }
+
+    return season;
   }
 
   async resolveScope(filters: {
@@ -170,7 +197,7 @@ export class LeaguesService {
       [leagueId, seasonId],
     );
 
-    const standings: StandingRowDto[] = rows.map((row) => ({
+    const standings: StandingRowDto[] = rows.map((row: (typeof rows)[number]) => ({
       position: Number(row.position),
       teamId: row.team_id,
       teamName: row.team_name,
@@ -210,12 +237,16 @@ export class LeaguesService {
 
     const params: unknown[] = [leagueId, seasonId];
     const conditions = [
-      'ff.league_id = $1::bigint',
-      'ff.season_id = $2::bigint',
+      's.league_id = $1::bigint',
+      'pcs.season_id = $2::bigint',
     ];
     if (format) {
-      params.push(format);
-      conditions.push(`ff.match_format = $${params.length}`);
+      if (format.toLowerCase().startsWith('test')) {
+        conditions.push(`pcs.format_type ILIKE 'Test%'`);
+      } else {
+        params.push(format);
+        conditions.push(`pcs.format_type = $${params.length}`);
+      }
     }
     params.push(limit);
     const limitParam = `$${params.length}`;
@@ -231,26 +262,34 @@ export class LeaguesService {
       strike_rate: string | null;
       average: string | null;
     }>(
-      `SELECT fb.player_id::text,
+      `SELECT pcs.player_id::text,
               p.fullname AS player_name,
-              COUNT(DISTINCT fb.fixture_id)::text AS innings,
-              COALESCE(SUM(fb.runs_scored), 0)::text AS runs,
-              COALESCE(SUM(fb.balls_faced), 0)::text AS balls,
-              COALESCE(SUM(fb.fours), 0)::text AS fours,
-              COALESCE(SUM(fb.sixes), 0)::text AS sixes,
-              ROUND(COALESCE(SUM(fb.runs_scored), 0)::numeric / NULLIF(SUM(fb.balls_faced), 0) * 100, 2)::text AS strike_rate,
-              ROUND(COALESCE(SUM(fb.runs_scored), 0)::numeric / NULLIF(COUNT(DISTINCT fb.fixture_id), 0), 2)::text AS average
-       FROM gold.fact_batting fb
-       JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
-       LEFT JOIN master.players p ON p.sportmonks_id = fb.player_id
+              COALESCE(SUM(pcs.batting_innings), 0)::text AS innings,
+              COALESCE(SUM(pcs.batting_runs), 0)::text AS runs,
+              COALESCE(SUM(pcs.batting_balls_faced), 0)::text AS balls,
+              COALESCE(SUM(pcs.batting_fours), 0)::text AS fours,
+              COALESCE(SUM(pcs.batting_sixes), 0)::text AS sixes,
+              ROUND(
+                COALESCE(SUM(pcs.batting_runs), 0)::numeric
+                / NULLIF(SUM(pcs.batting_balls_faced), 0) * 100,
+                2
+              )::text AS strike_rate,
+              ROUND(
+                COALESCE(SUM(pcs.batting_runs), 0)::numeric
+                / NULLIF(SUM(pcs.batting_innings) - SUM(pcs.batting_not_outs), 0),
+                2
+              )::text AS average
+       FROM master.player_career_stats pcs
+       JOIN master.seasons s ON s.sportmonks_id = pcs.season_id
+       LEFT JOIN master.players p ON p.sportmonks_id = pcs.player_id
        WHERE ${conditions.join(' AND ')}
-       GROUP BY fb.player_id, p.fullname
-       ORDER BY SUM(fb.runs_scored) DESC NULLS LAST, COUNT(DISTINCT fb.fixture_id) DESC
+       GROUP BY pcs.player_id, p.fullname
+       ORDER BY SUM(pcs.batting_runs) DESC NULLS LAST, SUM(pcs.batting_innings) DESC
        LIMIT ${limitParam}`,
       params,
     );
 
-    const batting: BattingLeaderboardRowDto[] = rows.map((row) => ({
+    const batting: BattingLeaderboardRowDto[] = rows.map((row: (typeof rows)[number]) => ({
       playerId: row.player_id,
       playerName: row.player_name,
       innings: Number(row.innings),
@@ -262,12 +301,6 @@ export class LeaguesService {
       average: row.average != null ? Number(row.average) : null,
     }));
 
-    const note = await this.buildStatsNote(
-      { format, leagueId: Number(leagueId), seasonId: Number(seasonId) },
-      scope,
-      batting.length,
-    );
-
     return {
       leagueId,
       seasonId,
@@ -275,7 +308,10 @@ export class LeaguesService {
       seasonName: scope.seasonName,
       format: scope.format,
       batting,
-      note,
+      note:
+        batting.length === 0
+          ? 'No career batting stats found for this filter scope in the database.'
+          : undefined,
     };
   }
 
@@ -293,12 +329,16 @@ export class LeaguesService {
 
     const params: unknown[] = [leagueId, seasonId];
     const conditions = [
-      'ff.league_id = $1::bigint',
-      'ff.season_id = $2::bigint',
+      's.league_id = $1::bigint',
+      'pcs.season_id = $2::bigint',
     ];
     if (format) {
-      params.push(format);
-      conditions.push(`ff.match_format = $${params.length}`);
+      if (format.toLowerCase().startsWith('test')) {
+        conditions.push(`pcs.format_type ILIKE 'Test%'`);
+      } else {
+        params.push(format);
+        conditions.push(`pcs.format_type = $${params.length}`);
+      }
     }
     params.push(limit);
     const limitParam = `$${params.length}`;
@@ -314,26 +354,34 @@ export class LeaguesService {
       economy: string | null;
       average: string | null;
     }>(
-      `SELECT fb.player_id::text,
+      `SELECT pcs.player_id::text,
               p.fullname AS player_name,
-              COUNT(DISTINCT fb.fixture_id)::text AS innings,
-              COALESCE(SUM(fb.overs), 0)::text AS overs,
-              COALESCE(SUM(fb.maidens), 0)::text AS maidens,
-              COALESCE(SUM(fb.runs_conceded), 0)::text AS runs_conceded,
-              COALESCE(SUM(fb.wickets), 0)::text AS wickets,
-              ROUND(COALESCE(SUM(fb.runs_conceded), 0)::numeric / NULLIF(SUM(fb.overs), 0), 2)::text AS economy,
-              ROUND(COALESCE(SUM(fb.runs_conceded), 0)::numeric / NULLIF(SUM(fb.wickets), 0), 2)::text AS average
-       FROM gold.fact_bowling fb
-       JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
-       LEFT JOIN master.players p ON p.sportmonks_id = fb.player_id
+              COALESCE(SUM(pcs.bowling_innings), 0)::text AS innings,
+              COALESCE(SUM(pcs.bowling_overs), 0)::text AS overs,
+              COALESCE(SUM(pcs.bowling_maidens), 0)::text AS maidens,
+              COALESCE(SUM(pcs.bowling_runs), 0)::text AS runs_conceded,
+              COALESCE(SUM(pcs.bowling_wickets), 0)::text AS wickets,
+              ROUND(
+                COALESCE(SUM(pcs.bowling_runs), 0)::numeric
+                / NULLIF(SUM(pcs.bowling_overs), 0),
+                2
+              )::text AS economy,
+              ROUND(
+                COALESCE(SUM(pcs.bowling_runs), 0)::numeric
+                / NULLIF(SUM(pcs.bowling_wickets), 0),
+                2
+              )::text AS average
+       FROM master.player_career_stats pcs
+       JOIN master.seasons s ON s.sportmonks_id = pcs.season_id
+       LEFT JOIN master.players p ON p.sportmonks_id = pcs.player_id
        WHERE ${conditions.join(' AND ')}
-       GROUP BY fb.player_id, p.fullname
-       ORDER BY SUM(fb.wickets) DESC NULLS LAST, SUM(fb.overs) DESC
+       GROUP BY pcs.player_id, p.fullname
+       ORDER BY SUM(pcs.bowling_wickets) DESC NULLS LAST, SUM(pcs.bowling_overs) DESC
        LIMIT ${limitParam}`,
       params,
     );
 
-    const bowling: BowlingLeaderboardRowDto[] = rows.map((row) => ({
+    const bowling: BowlingLeaderboardRowDto[] = rows.map((row: (typeof rows)[number]) => ({
       playerId: row.player_id,
       playerName: row.player_name,
       innings: Number(row.innings),
@@ -345,12 +393,6 @@ export class LeaguesService {
       average: row.average != null ? Number(row.average) : null,
     }));
 
-    const note = await this.buildStatsNote(
-      { format, leagueId: Number(leagueId), seasonId: Number(seasonId) },
-      scope,
-      bowling.length,
-    );
-
     return {
       leagueId,
       seasonId,
@@ -358,7 +400,110 @@ export class LeaguesService {
       seasonName: scope.seasonName,
       format: scope.format,
       bowling,
-      note,
+      note:
+        bowling.length === 0
+          ? 'No career bowling stats found for this filter scope in the database.'
+          : undefined,
+    };
+  }
+
+  async getSeasonAwards(
+    leagueId: string,
+    seasonId: string,
+    format?: string,
+  ): Promise<SeasonAwardsDto> {
+    const [batting, bowling] = await Promise.all([
+      this.getBattingLeaderboard(leagueId, seasonId, format, 1),
+      this.getBowlingLeaderboard(leagueId, seasonId, format, 1),
+    ]);
+    const orange = batting.batting?.[0] ?? null;
+    const purple = bowling.bowling?.[0] ?? null;
+
+    return {
+      leagueId,
+      seasonId,
+      leagueName: batting.leagueName ?? bowling.leagueName,
+      seasonName: batting.seasonName ?? bowling.seasonName,
+      format: batting.format ?? bowling.format,
+      orangeCap: orange
+        ? {
+            playerId: orange.playerId,
+            playerName: orange.playerName,
+            innings: orange.innings,
+            runs: orange.runs,
+            strikeRate: orange.strikeRate,
+            average: orange.average,
+          }
+        : null,
+      purpleCap: purple
+        ? {
+            playerId: purple.playerId,
+            playerName: purple.playerName,
+            innings: purple.innings,
+            wickets: purple.wickets,
+            economy: purple.economy,
+            average: purple.average,
+          }
+        : null,
+    };
+  }
+
+  async getSeasonPlayoffs(
+    leagueId: string,
+    seasonId: string,
+  ): Promise<SeasonPlayoffsDto> {
+    const scope = await this.resolveScope({
+      leagueId: Number(leagueId),
+      seasonId: Number(seasonId),
+    });
+    const { rows } = await this.db.query<{
+      fixture_id: string;
+      date_key: string | null;
+      localteam_id: string | null;
+      visitorteam_id: string | null;
+      winner_team_id: string | null;
+      local_team_name: string | null;
+      visitor_team_name: string | null;
+    }>(
+      `SELECT ff.fixture_id::text,
+              ff.date_key::text,
+              ff.localteam_id::text,
+              ff.visitorteam_id::text,
+              ff.winner_team_id::text,
+              lt.name AS local_team_name,
+              vt.name AS visitor_team_name
+       FROM gold.fact_fixture ff
+       LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
+       LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
+       WHERE ff.league_id = $1::bigint
+         AND ff.season_id = $2::bigint
+         AND ff.status ILIKE 'Finished'
+       ORDER BY ff.date_key DESC NULLS LAST, ff.fixture_id DESC
+       LIMIT 4`,
+      [leagueId, seasonId],
+    );
+
+    const labels = ['qualifier_1', 'eliminator', 'qualifier_2', 'final'];
+    const ordered = [...rows].reverse();
+    const playoffs: SeasonPlayoffMatchDto[] = ordered.map((row, index) => ({
+      type: labels[Math.max(0, labels.length - ordered.length + index)] ?? 'playoff',
+      fixtureId: row.fixture_id,
+      date: row.date_key,
+      localTeamId: row.localteam_id,
+      visitorTeamId: row.visitorteam_id,
+      localTeamName: row.local_team_name,
+      visitorTeamName: row.visitor_team_name,
+      winnerTeamId: row.winner_team_id,
+      note: 'Playoff stage inferred from latest finished fixtures; round metadata is not yet ingested.',
+    }));
+
+    return {
+      leagueId,
+      seasonId,
+      leagueName: scope.leagueName,
+      seasonName: scope.seasonName,
+      playoffs,
+      note: 'Playoff stage inferred from latest finished fixtures; add round/stage ingest for authoritative labels.',
     };
   }
 

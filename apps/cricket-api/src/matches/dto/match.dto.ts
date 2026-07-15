@@ -42,6 +42,25 @@ export class MatchListQueryDto {
   offset?: number = 0;
 }
 
+export class MatchSearchQueryDto extends MatchListQueryDto {
+  @ApiPropertyOptional({ description: 'Semantic match type, e.g. final' })
+  @IsOptional()
+  @IsString()
+  type?: string;
+
+  @ApiPropertyOptional({ description: 'First team SportMonks id' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  teamAId?: number;
+
+  @ApiPropertyOptional({ description: 'Second team SportMonks id' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  teamBId?: number;
+}
+
 export class MatchSummaryDto {
   fixtureId!: string;
   date!: string | null;
@@ -129,4 +148,17 @@ export class MatchScorecardDto {
   fixture!: MatchDetailDto;
   innings!: ScorecardInningDto[];
   lineups!: ScorecardLineupDto[];
+}
+
+export class MatchCoverageDto {
+  fixtureId!: string;
+  hasInningsTotals!: boolean;
+  hasBatting!: boolean;
+  hasBowling!: boolean;
+  hasLineups!: boolean;
+  inningsTotalRows!: number;
+  battingRows!: number;
+  bowlingRows!: number;
+  lineupRows!: number;
+  note?: string;
 }

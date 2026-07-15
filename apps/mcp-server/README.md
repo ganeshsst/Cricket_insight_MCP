@@ -14,32 +14,79 @@ npm install
 npm run dev
 ```
 
+Transport is chosen automatically:
+
+- **stdio** — when stdin is piped (e.g. Cursor MCP host)
+- **http** — when run interactively; listens on `MCP_PORT` (default `3002`) at `/mcp`
+
+Set `MCP_TRANSPORT=stdio` or `MCP_TRANSPORT=http` to override.
+
+## HTTP endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| POST | `/mcp` | Streamable HTTP MCP transport |
+
 ## Tools
 
+Each tool maps 1:1 to a Cricket API endpoint. See [cricket-api README](../cricket-api/README.md) for full path details.
+
 ### Players
-- `search_players`
-- `get_player`
-- `player_batting_stats`
-- `player_bowling_stats`
-- `get_player_career`
-- `compare_players`
+
+| Tool | API path |
+|------|----------|
+| `search_players` | `GET /players/search` |
+| `get_player` | `GET /players/:sportmonksId` |
+| `player_batting_stats` | `GET /players/:sportmonksId/batting-stats` |
+| `player_bowling_stats` | `GET /players/:sportmonksId/bowling-stats` |
+| `get_player_career` | `GET /players/:sportmonksId/career` |
+| `compare_players_by_name` | `GET /players/compare-by-name` |
+| `get_player_stats_by_name` | `GET /players/by-name/stats` |
 
 ### Matches
-- `list_matches`
-- `get_match`
-- `get_match_scorecard`
+
+| Tool | API path |
+|------|----------|
+| `list_matches` | `GET /matches` |
+| `search_matches` | `GET /matches/search` |
+| `get_season_final` | `GET /matches/final` |
+| `get_match` | `GET /matches/:fixtureId` |
+| `get_match_scorecard` | `GET /matches/:fixtureId/scorecard` |
+| `get_match_coverage` | `GET /matches/:fixtureId/coverage` |
 
 ### Leagues & seasons
-- `search_leagues`
-- `list_seasons`
-- `get_season_standings`
-- `get_batting_leaderboard`
-- `get_bowling_leaderboard`
-- `get_season_coverage`
+
+| Tool | API path |
+|------|----------|
+| `search_leagues` | `GET /leagues/search` |
+| `resolve_season` | `GET /leagues/resolve` |
+| `list_seasons` | `GET /leagues/:leagueId/seasons` |
+| `get_season_standings` | `GET /leagues/:leagueId/seasons/:seasonId/standings` |
+| `get_batting_leaderboard` | `GET /leagues/.../leaderboards/batting` |
+| `get_bowling_leaderboard` | `GET /leagues/.../leaderboards/bowling` |
+| `get_season_coverage` | `GET /leagues/.../coverage` |
 
 ### Teams
-- `search_teams`
-- `get_team`
-- `get_team_squad`
 
-Configure in Cursor MCP settings with stdio pointing to `tsx src/index.ts` in this directory.
+| Tool | API path |
+|------|----------|
+| `search_teams` | `GET /teams/search` |
+| `get_team` | `GET /teams/:teamId` |
+| `get_team_squad` | `GET /teams/:teamId/squad` |
+| `get_team_head_to_head` | `GET /teams/head-to-head` |
+
+### Venues
+
+| Tool | API path |
+|------|----------|
+| `get_venue` | `GET /venues/:venueId` |
+
+The MCP server exposes **25 tools** to Cursor and CricInsights chat. The Cricket
+API retains all 30 REST endpoints, including the five endpoints not exposed as
+MCP tools. `get_match_coverage`, `get_season_coverage`, and `get_venue` remain
+available.
+
+## Cursor configuration
+
+Configure in Cursor MCP settings with stdio pointing to `tsx src/index.ts` in this directory, or HTTP at `http://localhost:3002/mcp`.

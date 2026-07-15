@@ -31,6 +31,37 @@ export class SquadQueryDto {
   seasonId!: number;
 }
 
+export class TeamSeasonStatsQueryDto {
+  @ApiPropertyOptional({ description: 'Season sportmonks id' })
+  @Type(() => Number)
+  @IsInt()
+  seasonId!: number;
+
+  @ApiPropertyOptional({ description: 'League sportmonks id' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  leagueId?: number;
+}
+
+export class TeamHeadToHeadQueryDto {
+  @ApiPropertyOptional({ description: 'First team SportMonks id' })
+  @Type(() => Number)
+  @IsInt()
+  teamAId!: number;
+
+  @ApiPropertyOptional({ description: 'Second team SportMonks id' })
+  @Type(() => Number)
+  @IsInt()
+  teamBId!: number;
+
+  @ApiPropertyOptional({ description: 'Optional league SportMonks id' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  leagueId?: number;
+}
+
 export class SquadMemberDto {
   playerId!: string;
   playerName!: string | null;
@@ -43,4 +74,43 @@ export class TeamSquadDto {
   teamName!: string | null;
   seasonId!: string;
   members!: SquadMemberDto[];
+}
+
+export class TeamSeasonStatsDto {
+  teamId!: string;
+  teamName!: string | null;
+  leagueId!: string | null;
+  seasonId!: string;
+  matches!: number;
+  wins!: number;
+  losses!: number;
+  noResults!: number;
+  runsFor!: number;
+  wicketsLost!: number;
+  runsAgainst!: number;
+  wicketsTaken!: number;
+}
+
+export class TeamHeadToHeadMatchDto {
+  fixtureId!: string;
+  date!: string | null;
+  leagueId!: string | null;
+  seasonId!: string | null;
+  localTeamId!: string | null;
+  visitorTeamId!: string | null;
+  localTeamName!: string | null;
+  visitorTeamName!: string | null;
+  winnerTeamId!: string | null;
+}
+
+export class TeamHeadToHeadDto {
+  teamAId!: string;
+  teamAName!: string | null;
+  teamBId!: string;
+  teamBName!: string | null;
+  played!: number;
+  teamAWins!: number;
+  teamBWins!: number;
+  noResults!: number;
+  matches!: TeamHeadToHeadMatchDto[];
 }

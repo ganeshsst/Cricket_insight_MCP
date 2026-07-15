@@ -34,11 +34,33 @@ export class PlayerSearchQueryDto {
   @IsString()
   q!: string;
 
+  @ApiPropertyOptional({ description: 'Only include players associated with this league' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  leagueId?: number;
+
   @ApiPropertyOptional({ default: 20 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   limit?: number = 20;
+}
+
+export class PlayerByNameQueryDto extends PlayerStatsQueryDto {
+  @ApiPropertyOptional({ example: 'Jasprit Bumrah' })
+  @IsString()
+  q!: string;
+}
+
+export class PlayerCompareByNameQueryDto extends PlayerStatsQueryDto {
+  @ApiPropertyOptional({ example: 'Virat Kohli' })
+  @IsString()
+  a!: string;
+
+  @ApiPropertyOptional({ example: 'MS Dhoni' })
+  @IsString()
+  b!: string;
 }
 
 export class PlayerSearchResultDto {
@@ -49,13 +71,13 @@ export class PlayerSearchResultDto {
   countryId!: string | null;
   battingstyle!: string | null;
   bowlingstyle!: string | null;
+  imagePath!: string | null;
+  dateofbirth!: string | null;
+  positionId!: string | null;
 }
 
 export class PlayerProfileDto extends PlayerSearchResultDto {
-  dateofbirth!: string | null;
   gender!: string | null;
-  imagePath!: string | null;
-  positionId!: string | null;
 }
 
 export class PlayerBattingStatsDto {
@@ -95,6 +117,14 @@ export class PlayerCareerQueryDto {
   @Type(() => Number)
   @IsInt()
   leagueId?: number;
+}
+
+export class PlayerMatchesQueryDto extends PlayerStatsQueryDto {
+  @ApiPropertyOptional({ default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  limit?: number = 20;
 }
 
 export class PlayerCareerSeasonDto {
@@ -165,4 +195,34 @@ export class PlayerCompareEntryDto {
 export class PlayerCompareDto {
   scope!: StatsScopeDto;
   players!: PlayerCompareEntryDto[];
+}
+
+export class PlayerStatsBundleDto {
+  profile!: PlayerProfileDto;
+  batting!: PlayerBattingStatsDto;
+  bowling!: PlayerBowlingStatsDto;
+}
+
+export class PlayerMatchLogRowDto {
+  fixtureId!: string;
+  date!: string | null;
+  leagueId!: string | null;
+  seasonId!: string | null;
+  localTeamName!: string | null;
+  visitorTeamName!: string | null;
+  runs!: number | null;
+  balls!: number | null;
+  fours!: number | null;
+  sixes!: number | null;
+  battingStrikeRate!: number | null;
+  overs!: number | null;
+  runsConceded!: number | null;
+  wickets!: number | null;
+  economy!: number | null;
+}
+
+export class PlayerMatchLogDto {
+  playerId!: string;
+  matches!: PlayerMatchLogRowDto[];
+  note?: string;
 }

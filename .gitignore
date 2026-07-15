@@ -1,15 +1,38 @@
-# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
-# compiled output
+# Dependencies
+node_modules
+
+# Build / compiled output
 dist
 tmp
 out-tsc
+out
 *.tsbuildinfo
 
-# CDK asset staging directory
+# Next.js
+.next
+
+# Nest / local app build outputs
+apps/*/dist
+
+# Nx
+.nx
+
+# CDK
 cdk.out
 
-# local environment / secrets
+# Test / lint / tooling caches
+coverage
+.cache
+.eslintcache
+.sass-cache
+connect.lock
+libpeerconnection.log
+testem.log
+typings
+
+# Local environment / secrets
 .env
 .env.*
 !.env.example
@@ -17,17 +40,17 @@ cdk.out
 *.pem
 *.key
 
-# dependencies
-node_modules
-
-# package manager logs
+# Package manager hygiene (this workspace uses pnpm-lock.yaml)
+package-lock.json
+yarn.lock
 npm-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+*.log
 
 # IDEs and editors
-/.idea
+.idea
 .project
 .classpath
 .c9/
@@ -35,34 +58,18 @@ lerna-debug.log*
 .settings/
 *.sublime-workspace
 
-# IDE - VSCode
+# IDE - VSCode (keep shared workspace defaults)
 .vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# misc
-/.sass-cache
-/connect.lock
-/coverage
-/libpeerconnection.log
-testem.log
-/typings
+# Claude / local agent settings
+.claude/worktrees
+.claude/settings.local.json
 
 # System Files
 .DS_Store
 Thumbs.db
-
-.nx/cache
-.nx/workspace-data
-.nx/migrate-runs
-.claude/worktrees
-.claude/settings.local.json
-
-# Next.js
-.next
-out
-
-# Nest / local app build outputs
-apps/*/dist
+Desktop.ini
