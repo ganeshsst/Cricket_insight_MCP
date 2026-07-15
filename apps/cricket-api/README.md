@@ -15,34 +15,80 @@ npm run dev
 - API: http://localhost:3001
 - Swagger: http://localhost:3001/docs
 
-## P0 endpoints
+## Endpoints
 
-| Method | Path |
-|--------|------|
-| GET | `/players/search?q=` |
-| GET | `/players/:sportmonksId` |
-| GET | `/players/:sportmonksId/batting-stats` |
-| GET | `/players/:sportmonksId/bowling-stats` |
-| GET | `/matches` |
-| GET | `/matches/:fixtureId` |
+All routes are `GET`. Public ids use SportMonks `sportmonks_id`.
 
-## P1 endpoints
+### Players (`/players`)
 
-| Method | Path |
-|--------|------|
-| GET | `/leagues/search?q=` |
-| GET | `/leagues/:leagueId/seasons` |
-| GET | `/leagues/:leagueId/seasons/:seasonId/standings` |
-| GET | `/leagues/:leagueId/seasons/:seasonId/leaderboards/batting` |
-| GET | `/leagues/:leagueId/seasons/:seasonId/leaderboards/bowling` |
-| GET | `/leagues/:leagueId/seasons/:seasonId/coverage` |
-| GET | `/teams/search?q=` |
-| GET | `/teams/:teamId` |
-| GET | `/teams/:teamId/squad?seasonId=` |
-| GET | `/matches/:fixtureId/scorecard` |
-| GET | `/players/:sportmonksId/career` |
-| GET | `/players/compare?ids=` |
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/players/search?q=` | Search players by name |
+| GET | `/players/compare?ids=` | Compare 2–4 players side by side (comma-separated ids) |
+| GET | `/players/compare-by-name?a=&b=` | Compare two players by name |
+| GET | `/players/by-name/stats?q=` | Resolve a player by name and return profile + batting/bowling stats |
+| GET | `/players/:sportmonksId` | Player profile |
+| GET | `/players/:sportmonksId/batting-stats` | Aggregate batting stats |
+| GET | `/players/:sportmonksId/bowling-stats` | Aggregate bowling stats |
+| GET | `/players/:sportmonksId/career` | Per-season batting and bowling career breakdown |
+| GET | `/players/:sportmonksId/matches` | Fixture-level batting and bowling match log |
 
-Useful IDs: IPL `leagueId=1`, IPL 2026 `seasonId=1795`, format `T20`.
+Optional query params for stats/career/matches: `format`, `seasonId`, `leagueId`, `limit`.
 
-Public ids use SportMonks `sportmonks_id`.
+### Matches (`/matches`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/matches` | List matches with optional filters |
+| GET | `/matches/search` | Search matches (team vs team, final, etc.) |
+| GET | `/matches/final` | Inferred final match for a league season |
+| GET | `/matches/:fixtureId` | Match summary with innings scores |
+| GET | `/matches/:fixtureId/scorecard` | Full scorecard with batting, bowling, and lineups |
+| GET | `/matches/:fixtureId/coverage` | Scorecard row coverage for a fixture |
+
+Optional query params for list/search: `leagueId`, `seasonId`, `teamId`, `teamAId`, `teamBId`, `type`, `format`, `limit`, `offset`.
+
+### Leagues (`/leagues`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/leagues/search?q=` | Search leagues (e.g. IPL) |
+| GET | `/leagues/resolve?q=` | Resolve a natural-language league/season query (e.g. `IPL 2024`) |
+| GET | `/leagues/:leagueId/seasons` | List seasons for a league |
+| GET | `/leagues/:leagueId/seasons/:seasonId/standings` | Season points table |
+| GET | `/leagues/:leagueId/seasons/:seasonId/leaderboards/batting` | Top batters for a season |
+| GET | `/leagues/:leagueId/seasons/:seasonId/leaderboards/bowling` | Top bowlers for a season |
+| GET | `/leagues/:leagueId/seasons/:seasonId/awards` | Orange Cap and Purple Cap winners |
+| GET | `/leagues/:leagueId/seasons/:seasonId/playoffs` | Inferred playoff matches |
+| GET | `/leagues/:leagueId/seasons/:seasonId/coverage` | Scorecard ingest coverage for a season |
+
+Optional query params for leaderboards/awards: `format`, `limit`.
+
+### Teams (`/teams`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/teams/search?q=` | Search teams by name or code |
+| GET | `/teams/head-to-head?teamAId=&teamBId=` | Head-to-head record between two teams |
+| GET | `/teams/:teamId` | Team profile |
+| GET | `/teams/:teamId/squad?seasonId=` | Team squad for a season |
+| GET | `/teams/:teamId/season-stats` | Team aggregate season stats |
+
+Optional query params for head-to-head and season-stats: `leagueId`.
+
+### Venues (`/venues`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/venues/:venueId` | Venue usage summary |
+
+## Useful IDs
+
+| Entity | SportMonks id |
+|--------|---------------|
+| IPL | `leagueId=1` |
+| IPL 2026 | `seasonId=1795` |
+| India | `teamId=10` |
+| New Zealand | `teamId=42` |
+
+Format filter example: `format=T20`.

@@ -1,9 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
-    "paths": {
-      "@cricket-ai/database": ["libs/database/src/index.ts"]
-    },
     "composite": true,
     "declarationMap": true,
     "emitDeclarationOnly": true,

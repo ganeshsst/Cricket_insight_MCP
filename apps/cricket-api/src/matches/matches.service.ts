@@ -1,9 +1,11 @@
-import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service.js';
 import type {
+  MatchCoverageDto,
   MatchDetailDto,
   MatchInningScoreDto,
   MatchListQueryDto,
+  MatchSearchQueryDto,
   MatchScorecardDto,
   MatchSummaryDto,
   ScorecardBattingRowDto,
@@ -90,7 +92,92 @@ export class MatchesService {
       params,
     );
 
-    return rows.map((row) => this.toSummary(row));
+    return rows.map((row: FixtureFactRow) => this.toSummary(row));
+  }
+
+  async search(query: MatchSearchQueryDto): Promise<MatchSummaryDto[]> {
+    if (query.type?.toLowerCase() === 'final') {
+      return [await this.getSeasonFinal(query)];
+    }
+
+    const params: unknown[] = [];
+    const conditions: string[] = ['1=1'];
+
+    if (query.leagueId) {
+      params.push(query.leagueId);
+      conditions.push(`ff.league_id = $${params.length}::bigint`);
+    }
+    if (query.seasonId) {
+      params.push(query.seasonId);
+      conditions.push(`ff.season_id = $${params.length}::bigint`);
+    }
+    if (query.format) {
+      params.push(query.format);
+      conditions.push(`ff.match_format = $${params.length}`);
+    }
+    if (query.teamAId && query.teamBId) {
+      params.push(query.teamAId, query.teamBId);
+      const teamAParam = `$${params.length - 1}`;
+      const teamBParam = `$${params.length}`;
+      conditions.push(
+        `((ff.localteam_id = ${teamAParam}::bigint AND ff.visitorteam_id = ${teamBParam}::bigint)
+          OR (ff.localteam_id = ${teamBParam}::bigint AND ff.visitorteam_id = ${teamAParam}::bigint))`,
+      );
+    } else if (query.teamId ?? query.teamAId) {
+      params.push(query.teamId ?? query.teamAId);
+      conditions.push(
+        `(ff.localteam_id = $${params.length}::bigint OR ff.visitorteam_id = $${params.length}::bigint)`,
+      );
+    }
+
+    params.push(query.limit ?? 20);
+    const limitParam = `$${params.length}`;
+    params.push(query.offset ?? 0);
+    const offsetParam = `$${params.length}`;
+
+    const { rows } = await this.db.query<FixtureFactRow>(
+      `SELECT ff.fixture_id::text,
+              ff.date_key::text,
+              ff.match_format,
+              ff.status,
+              ff.league_id::text,
+              ff.season_id::text,
+              ff.localteam_id::text,
+              ff.visitorteam_id::text,
+              ff.winner_team_id::text,
+              ff.venue_id::text,
+              ff.is_live,
+              lt.name AS local_team_name,
+              vt.name AS visitor_team_name
+       FROM gold.fact_fixture ff
+       LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
+       LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY ff.date_key DESC NULLS LAST, ff.fixture_id DESC
+       LIMIT ${limitParam} OFFSET ${offsetParam}`,
+      params,
+    );
+
+    return rows.map((row: FixtureFactRow) => this.toSummary(row));
+  }
+
+  async getSeasonFinal(query: MatchSearchQueryDto): Promise<MatchSummaryDto> {
+    if (!query.leagueId || !query.seasonId) {
+      throw new BadRequestException('leagueId and seasonId are required to infer a final');
+    }
+
+    const results = await this.list({
+      leagueId: query.leagueId,
+      seasonId: query.seasonId,
+      format: query.format,
+      limit: 1,
+      offset: 0,
+    });
+    const final = results[0];
+    if (!final) {
+      throw new NotFoundException(`Final not found for season ${query.seasonId}`);
+    }
+    return final;
   }
 
   async getById(fixtureId: string): Promise<MatchDetailDto> {
@@ -267,8 +354,8 @@ export class MatchesService {
       .sort((a, b) => (a.scoreboard ?? '').localeCompare(b.scoreboard ?? ''))
       .map((meta) => {
         const battingRows: ScorecardBattingRowDto[] = batting.rows
-          .filter((r) => (r.scoreboard ?? null) === meta.scoreboard)
-          .map((r) => ({
+          .filter((r: (typeof batting.rows)[number]) => (r.scoreboard ?? null) === meta.scoreboard)
+          .map((r: (typeof batting.rows)[number]) => ({
             playerId: r.player_id,
             playerName: r.player_name,
             teamId: r.team_id,
@@ -285,8 +372,8 @@ export class MatchesService {
           }));
 
         const bowlingRows: ScorecardBowlingRowDto[] = bowling.rows
-          .filter((r) => (r.scoreboard ?? null) === meta.scoreboard)
-          .map((r) => ({
+          .filter((r: (typeof bowling.rows)[number]) => (r.scoreboard ?? null) === meta.scoreboard)
+          .map((r: (typeof bowling.rows)[number]) => ({
             playerId: r.player_id,
             playerName: r.player_name,
             teamId: r.team_id,
@@ -304,7 +391,7 @@ export class MatchesService {
           scoreboard: meta.scoreboard,
           teamId: battingTeam?.teamId ?? meta.teamId,
           teamName: battingTeam
-            ? batting.rows.find((r) => r.player_id === battingTeam.playerId)
+            ? batting.rows.find((r: (typeof batting.rows)[number]) => r.player_id === battingTeam.playerId)
                 ?.team_name ?? meta.teamName
             : meta.teamName,
           batting: battingRows,
@@ -339,6 +426,46 @@ export class MatchesService {
     };
   }
 
+  async getCoverage(fixtureId: string): Promise<MatchCoverageDto> {
+    await this.getById(fixtureId);
+
+    const { rows } = await this.db.query<{
+      innings_total_rows: string;
+      batting_rows: string;
+      bowling_rows: string;
+      lineup_rows: string;
+    }>(
+      `SELECT
+         (SELECT COUNT(*) FROM matches.fixture_runs WHERE fixture_id = $1::bigint)::text AS innings_total_rows,
+         (SELECT COUNT(*) FROM matches.fixture_batting WHERE fixture_id = $1::bigint)::text AS batting_rows,
+         (SELECT COUNT(*) FROM matches.fixture_bowling WHERE fixture_id = $1::bigint)::text AS bowling_rows,
+         (SELECT COUNT(*) FROM matches.fixture_lineups WHERE fixture_id = $1::bigint)::text AS lineup_rows`,
+      [fixtureId],
+    );
+
+    const row = rows[0];
+    const inningsTotalRows = Number(row?.innings_total_rows ?? 0);
+    const battingRows = Number(row?.batting_rows ?? 0);
+    const bowlingRows = Number(row?.bowling_rows ?? 0);
+    const lineupRows = Number(row?.lineup_rows ?? 0);
+
+    return {
+      fixtureId,
+      hasInningsTotals: inningsTotalRows > 0,
+      hasBatting: battingRows > 0,
+      hasBowling: bowlingRows > 0,
+      hasLineups: lineupRows > 0,
+      inningsTotalRows,
+      battingRows,
+      bowlingRows,
+      lineupRows,
+      note:
+        battingRows === 0 || bowlingRows === 0 || lineupRows === 0
+          ? 'Scorecard data is partially loaded for this fixture.'
+          : undefined,
+    };
+  }
+
   private async getInnings(fixtureId: string): Promise<MatchInningScoreDto[]> {
     const { rows } = await this.db.query<{
       team_id: string;
@@ -361,7 +488,7 @@ export class MatchesService {
       [fixtureId],
     );
 
-    return rows.map((row) => ({
+    return rows.map((row: (typeof rows)[number]) => ({
       teamId: row.team_id,
       teamName: row.team_name,
       inning: row.inning,

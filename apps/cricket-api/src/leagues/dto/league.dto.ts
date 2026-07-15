@@ -8,6 +8,12 @@ export class LeagueSearchQueryDto {
   q!: string;
 }
 
+export class LeagueResolveQueryDto {
+  @ApiPropertyOptional({ example: 'IPL 2024' })
+  @IsString()
+  q!: string;
+}
+
 export class LeagueDto {
   sportmonksId!: string;
   name!: string;
@@ -20,6 +26,8 @@ export class SeasonDto {
   leagueId!: string;
   leagueName!: string;
 }
+
+export class ResolvedSeasonDto extends SeasonDto {}
 
 export class LeaderboardQueryDto {
   @ApiPropertyOptional({ example: 'T20', description: 'Match format — IPL uses T20' })
@@ -103,5 +111,47 @@ export class SeasonCoverageDto {
   fixturesWithBatting!: number;
   fixturesWithBowling!: number;
   standingsTeams!: number;
+  note?: string;
+}
+
+export class SeasonAwardPlayerDto {
+  playerId!: string;
+  playerName!: string | null;
+  innings!: number;
+  runs?: number;
+  wickets?: number;
+  strikeRate?: number | null;
+  average?: number | null;
+  economy?: number | null;
+}
+
+export class SeasonAwardsDto {
+  leagueId!: string;
+  seasonId!: string;
+  leagueName!: string | null;
+  seasonName!: string | null;
+  format!: string | null;
+  orangeCap!: SeasonAwardPlayerDto | null;
+  purpleCap!: SeasonAwardPlayerDto | null;
+}
+
+export class SeasonPlayoffMatchDto {
+  type!: string;
+  fixtureId!: string;
+  date!: string | null;
+  localTeamId!: string | null;
+  visitorTeamId!: string | null;
+  localTeamName!: string | null;
+  visitorTeamName!: string | null;
+  winnerTeamId!: string | null;
+  note?: string;
+}
+
+export class SeasonPlayoffsDto {
+  leagueId!: string;
+  seasonId!: string;
+  leagueName!: string | null;
+  seasonName!: string | null;
+  playoffs!: SeasonPlayoffMatchDto[];
   note?: string;
 }

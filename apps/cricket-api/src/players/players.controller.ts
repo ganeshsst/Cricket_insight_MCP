@@ -1,15 +1,20 @@
 import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
+  PlayerByNameQueryDto,
   PlayerBattingStatsDto,
   PlayerBowlingStatsDto,
   PlayerCareerDto,
   PlayerCareerQueryDto,
+  PlayerCompareByNameQueryDto,
   PlayerCompareDto,
   PlayerCompareQueryDto,
+  PlayerMatchLogDto,
+  PlayerMatchesQueryDto,
   PlayerProfileDto,
   PlayerSearchQueryDto,
   PlayerSearchResultDto,
+  PlayerStatsBundleDto,
   PlayerStatsQueryDto,
 } from './dto/player.dto.js';
 import { PlayersService } from './players.service.js';
@@ -25,7 +30,7 @@ export class PlayersController {
   @ApiOperation({ summary: 'Search players by name' })
   @ApiOkResponse({ type: PlayerSearchResultDto, isArray: true })
   search(@Query() query: PlayerSearchQueryDto) {
-    return this.playersService.search(query.q, query.limit ?? 20);
+    return this.playersService.search(query.q, query.limit ?? 20, query.leagueId);
   }
 
   @Get('compare')
@@ -33,6 +38,20 @@ export class PlayersController {
   @ApiOkResponse({ type: PlayerCompareDto })
   compare(@Query() query: PlayerCompareQueryDto) {
     return this.playersService.compare(query);
+  }
+
+  @Get('compare-by-name')
+  @ApiOperation({ summary: 'Compare two players by name' })
+  @ApiOkResponse({ type: PlayerCompareDto })
+  compareByName(@Query() query: PlayerCompareByNameQueryDto) {
+    return this.playersService.compareByName(query);
+  }
+
+  @Get('by-name/stats')
+  @ApiOperation({ summary: 'Resolve a player by name and return profile, batting, and bowling stats' })
+  @ApiOkResponse({ type: PlayerStatsBundleDto })
+  statsByName(@Query() query: PlayerByNameQueryDto) {
+    return this.playersService.getStatsByName(query);
   }
 
   @Get(':sportmonksId/batting-stats')
@@ -63,6 +82,16 @@ export class PlayersController {
     @Query() query: PlayerCareerQueryDto,
   ) {
     return this.playersService.getCareer(sportmonksId, query);
+  }
+
+  @Get(':sportmonksId/matches')
+  @ApiOperation({ summary: 'Fixture-level batting and bowling log for a player' })
+  @ApiOkResponse({ type: PlayerMatchLogDto })
+  matches(
+    @Param('sportmonksId') sportmonksId: string,
+    @Query() query: PlayerMatchesQueryDto,
+  ) {
+    return this.playersService.getMatches(sportmonksId, query);
   }
 
   @Get(':sportmonksId')
