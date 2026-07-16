@@ -15,6 +15,9 @@ RUN pnpm install --frozen-lockfile --filter @cricket-ai/cricket-api...
 # Build shared database package (package exports resolve to dist/index.js)
 RUN pnpm exec tsc -p libs/database/tsconfig.lib.json
 
+# Build the API with tsc so NestJS decorator metadata is emitted (tsx/esbuild drops it)
+RUN pnpm exec tsc -p apps/cricket-api/tsconfig.app.json
+
 WORKDIR /repo/apps/cricket-api
 
 ENV NODE_ENV=production
@@ -22,5 +25,4 @@ ENV CRICKET_API_PORT=8080
 
 EXPOSE 8080
 
-# tsx avoids Node ESM resolution issues in compiled @cricket-ai/database dist output
-CMD ["npx", "tsx", "src/main.ts"]
+CMD ["node", "dist/main.js"]
