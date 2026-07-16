@@ -14,17 +14,20 @@ config({ path: join(root, '.env') });
 const apiBase = process.env.CRICKET_API_URL ?? 'http://localhost:3001';
 const port = Number(process.env.MCP_PORT ?? process.env.PORT ?? 3002);
 
-/** Cursor/IDE hosts pipe stdin — use stdio even if .env defaults to http. */
+/**
+ * An explicit MCP_TRANSPORT always wins (e.g. hosted HTTP on Render/containers).
+ * When unset, auto-detect: Cursor/IDE hosts pipe stdin (no TTY) → stdio.
+ */
 function resolveTransportMode(): 'stdio' | 'http' {
-  if (!process.stdin.isTTY) {
-    return 'stdio';
+  const explicit = process.env.MCP_TRANSPORT?.toLowerCase();
+  if (explicit === 'stdio') return 'stdio';
+  if (explicit === 'http' || explicit === 'https') return 'http';
+  if (explicit) {
+    throw new Error(
+      `Unsupported MCP_TRANSPORT "${process.env.MCP_TRANSPORT}". Use "http" or "stdio".`,
+    );
   }
-  const mode = (process.env.MCP_TRANSPORT ?? 'http').toLowerCase();
-  if (mode === 'stdio') return 'stdio';
-  if (mode === 'http' || mode === 'https') return 'http';
-  throw new Error(
-    `Unsupported MCP_TRANSPORT "${process.env.MCP_TRANSPORT}". Use "http" or "stdio".`,
-  );
+  return process.stdin.isTTY ? 'http' : 'stdio';
 }
 
 const transportMode = resolveTransportMode();
