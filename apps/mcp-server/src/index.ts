@@ -11,7 +11,7 @@ import { z } from 'zod';
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 config({ path: join(root, '.env') });
 
-const apiBase = process.env.CRICKET_API_URL ?? 'http://localhost:3001';
+const apiBase = (process.env.CRICKET_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
 const port = Number(process.env.MCP_PORT ?? process.env.PORT ?? 3002);
 
 /**
@@ -33,7 +33,7 @@ function resolveTransportMode(): 'stdio' | 'http' {
 const transportMode = resolveTransportMode();
 
 async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBase}${path}`);
+  const response = await fetch(`${apiBase}/${path.replace(/^\/+/, '')}`);
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`API ${response.status}: ${body}`);
