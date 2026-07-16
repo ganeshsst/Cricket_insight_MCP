@@ -3,7 +3,7 @@ import {
   SecretsManagerClient,
 } from '@aws-sdk/client-secrets-manager';
 import pg from 'pg';
-import { databaseUrlFromEnv } from './env';
+import { databaseUrlFromEnv } from './env.js';
 
 const secrets = new SecretsManagerClient({});
 

@@ -3,12 +3,12 @@ export {
   DATABASE_NAME,
   databaseNameForEnv,
   databaseUrlFromEnv,
-} from './env';
-export { getPool, closePool } from './client';
+} from './env.js';
+export { getPool, closePool } from './client.js';
 export {
   addToWaitlist,
   isValidEmail,
   normalizeEmail,
   WaitlistDuplicateError,
   WaitlistInvalidEmailError,
-} from './waitlist';
+} from './waitlist.js';

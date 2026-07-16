@@ -12,6 +12,9 @@ COPY apps/cricket-api ./apps/cricket-api
 # Install only cricket-api + @cricket-ai/database (skips Next/CDK to save build memory)
 RUN pnpm install --frozen-lockfile --filter @cricket-ai/cricket-api...
 
+# Build shared database package (package exports resolve to dist/index.js)
+RUN pnpm exec tsc -p libs/database/tsconfig.lib.json
+
 WORKDIR /repo/apps/cricket-api
 
 ENV NODE_ENV=production
