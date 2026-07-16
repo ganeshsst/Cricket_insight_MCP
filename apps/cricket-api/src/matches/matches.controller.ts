@@ -1,6 +1,11 @@
 import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
+  ApiFixtureIdParam,
+  ApiMatchListQuery,
+  ApiMatchSearchQuery,
+} from '../common/swagger.decorators.js';
+import {
   MatchCoverageDto,
   MatchDetailDto,
   MatchListQueryDto,
@@ -19,6 +24,7 @@ export class MatchesController {
 
   @Get()
   @ApiOperation({ summary: 'List matches with optional filters' })
+  @ApiMatchListQuery()
   @ApiOkResponse({ type: MatchSummaryDto, isArray: true })
   list(@Query() query: MatchListQueryDto) {
     return this.matchesService.list(query);
@@ -26,6 +32,7 @@ export class MatchesController {
 
   @Get('search')
   @ApiOperation({ summary: 'Search matches with semantic filters like final or team-vs-team' })
+  @ApiMatchSearchQuery()
   @ApiOkResponse({ type: MatchSummaryDto, isArray: true })
   search(@Query() query: MatchSearchQueryDto) {
     return this.matchesService.search(query);
@@ -33,6 +40,7 @@ export class MatchesController {
 
   @Get('final')
   @ApiOperation({ summary: 'Get the inferred final for a league season' })
+  @ApiMatchSearchQuery()
   @ApiOkResponse({ type: MatchSummaryDto })
   getFinal(@Query() query: MatchSearchQueryDto) {
     return this.matchesService.getSeasonFinal(query);
@@ -40,6 +48,7 @@ export class MatchesController {
 
   @Get(':fixtureId/scorecard')
   @ApiOperation({ summary: 'Full match scorecard with batting, bowling, lineups' })
+  @ApiFixtureIdParam()
   @ApiOkResponse({ type: MatchScorecardDto })
   getScorecard(@Param('fixtureId') fixtureId: string) {
     return this.matchesService.getScorecard(fixtureId);
@@ -47,6 +56,7 @@ export class MatchesController {
 
   @Get(':fixtureId/coverage')
   @ApiOperation({ summary: 'Scorecard row coverage for a fixture' })
+  @ApiFixtureIdParam()
   @ApiOkResponse({ type: MatchCoverageDto })
   getCoverage(@Param('fixtureId') fixtureId: string) {
     return this.matchesService.getCoverage(fixtureId);
@@ -54,6 +64,7 @@ export class MatchesController {
 
   @Get(':fixtureId')
   @ApiOperation({ summary: 'Get match summary with innings scores' })
+  @ApiFixtureIdParam()
   @ApiOkResponse({ type: MatchDetailDto })
   getMatch(@Param('fixtureId') fixtureId: string) {
     return this.matchesService.getById(fixtureId);

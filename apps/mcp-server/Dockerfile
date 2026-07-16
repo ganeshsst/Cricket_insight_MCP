@@ -1,5 +1,4 @@
-# Build from monorepo root:
-#   docker build -f apps/mcp-server/Dockerfile -t cricket-mcp .
+# Build from monorepo root (Render: Dockerfile Path = apps/mcp-server/Dockerfile, Context = .)
 FROM node:22-slim
 
 WORKDIR /app

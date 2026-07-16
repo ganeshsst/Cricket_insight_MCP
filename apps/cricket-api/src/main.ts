@@ -28,7 +28,7 @@ async function bootstrap() {
     .build();
   SwaggerModule.setup('docs', app, SwaggerModule.createDocument(app, swagger));
 
-  const port = Number(process.env.CRICKET_API_PORT ?? 3001);
+  const port = Number(process.env.CRICKET_API_PORT ?? process.env.PORT ?? 3001);
   await app.listen(port);
   console.log(`Cricket API listening on http://localhost:${port}`);
   console.log(`Swagger docs at http://localhost:${port}/docs`);

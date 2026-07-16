@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from '@nes
 import { DatabaseService } from '../database/database.service.js';
 import { LeaguesService } from '../leagues/leagues.service.js';
 import type {
+  DismissalBreakdownRowDto,
   PlayerByNameQueryDto,
   PlayerBattingStatsDto,
   PlayerBowlingStatsDto,
@@ -11,6 +12,8 @@ import type {
   PlayerCompareByNameQueryDto,
   PlayerCompareDto,
   PlayerCompareQueryDto,
+  PlayerDismissalAnalysisDto,
+  PlayerDismissalByNameQueryDto,
   PlayerMatchLogDto,
   PlayerMatchesQueryDto,
   PlayerProfileDto,
@@ -447,6 +450,168 @@ export class PlayersService {
           ? 'No fixture-level scorecard rows found for this player/filter scope.'
           : undefined,
     };
+  }
+
+  async getDismissalsByName(
+    query: PlayerDismissalByNameQueryDto,
+  ): Promise<PlayerDismissalAnalysisDto> {
+    const player = await this.resolveByName(query.q, query.leagueId);
+    return this.getDismissals(player.sportmonksId, {
+      format: query.format,
+      leagueId: query.leagueId,
+      seasonId: query.seasonId,
+    });
+  }
+
+  /**
+   * Data-grounded batting weakness profile built from scorecard dismissal rows:
+   * how the batter gets out, against pace vs spin, by bowling style, and by phase.
+   */
+  async getDismissals(
+    sportmonksId: string,
+    filters: PlayerStatsQueryDto,
+  ): Promise<PlayerDismissalAnalysisDto> {
+    const profile = await this.getById(sportmonksId);
+
+    const params: unknown[] = [sportmonksId];
+    const conditions = ['fb.player_id = $1::bigint', 'fb.wicket_outcome_id IS NOT NULL'];
+
+    if (filters.format) {
+      params.push(filters.format);
+      conditions.push(`ff.match_format = $${params.length}`);
+    }
+    if (filters.leagueId) {
+      params.push(filters.leagueId);
+      conditions.push(`ff.league_id = $${params.length}::bigint`);
+    }
+    if (filters.seasonId) {
+      params.push(filters.seasonId);
+      conditions.push(`ff.season_id = $${params.length}::bigint`);
+    }
+
+    const { rows } = await this.db.query<{
+      outcome: string | null;
+      bowler_style: string | null;
+      fow_balls: string | null;
+      format: string | null;
+    }>(
+      `SELECT so.name AS outcome,
+              bp.bowlingstyle AS bowler_style,
+              fb.fow_balls::text AS fow_balls,
+              ff.match_format AS format
+       FROM matches.fixture_batting fb
+       JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
+       JOIN master.score_outcomes so ON so.sportmonks_id = fb.wicket_outcome_id
+       LEFT JOIN master.players bp ON bp.sportmonks_id = fb.bowling_player_id
+       WHERE ${conditions.join(' AND ')}`,
+      params,
+    );
+
+    const scope = await this.leagues.resolveScope(filters);
+
+    // Outcomes that are not a bowler/fielding dismissal of the batter.
+    const nonDismissal = new Set(['not out', 'retired hurt', 'absent']);
+    let notOuts = 0;
+    const dismissalTypeCounts = new Map<string, number>();
+    const bowlerTypeCounts = new Map<string, number>();
+    const bowlingStyleCounts = new Map<string, number>();
+    const phaseCounts = new Map<string, number>();
+
+    for (const row of rows) {
+      const outcome = (row.outcome ?? 'Unknown').trim();
+      const normalized = outcome.toLowerCase();
+      if (normalized === 'not out') {
+        notOuts += 1;
+        continue;
+      }
+      if (nonDismissal.has(normalized)) {
+        continue;
+      }
+
+      dismissalTypeCounts.set(outcome, (dismissalTypeCounts.get(outcome) ?? 0) + 1);
+
+      const bowlerType = this.classifyBowlerType(row.bowler_style);
+      bowlerTypeCounts.set(bowlerType, (bowlerTypeCounts.get(bowlerType) ?? 0) + 1);
+
+      const style = row.bowler_style ?? 'unknown';
+      bowlingStyleCounts.set(style, (bowlingStyleCounts.get(style) ?? 0) + 1);
+
+      const phase = this.classifyPhase(row.fow_balls, row.format);
+      phaseCounts.set(phase, (phaseCounts.get(phase) ?? 0) + 1);
+    }
+
+    const totalDismissals = [...dismissalTypeCounts.values()].reduce(
+      (sum, n) => sum + n,
+      0,
+    );
+
+    return {
+      playerId: sportmonksId,
+      playerName: profile.fullname,
+      scope,
+      totalDismissals,
+      notOuts,
+      byDismissalType: this.toBreakdown(dismissalTypeCounts, totalDismissals),
+      byBowlerType: this.toBreakdown(bowlerTypeCounts, totalDismissals),
+      byBowlingStyle: this.toBreakdown(bowlingStyleCounts, totalDismissals),
+      byPhase: this.toBreakdown(phaseCounts, totalDismissals),
+      note:
+        totalDismissals === 0
+          ? 'No scorecard dismissal rows found for this player/filter scope. Ball-by-ball scorecards are only partially ingested, so this reflects loaded fixtures only.'
+          : 'Derived from ingested scorecard dismissal rows; coverage is partial, so treat as indicative rather than a complete career record.',
+    };
+  }
+
+  private classifyBowlerType(style: string | null): 'pace' | 'spin' | 'unknown' {
+    if (!style) return 'unknown';
+    const s = style.toLowerCase();
+    if (s.includes('fast') || s.includes('medium') || s.includes('seam')) {
+      return 'pace';
+    }
+    if (
+      s.includes('orthodox') ||
+      s.includes('legbreak') ||
+      s.includes('googly') ||
+      s.includes('offbreak') ||
+      s.includes('chinaman') ||
+      s.includes('slow') ||
+      s.includes('spin')
+    ) {
+      return 'spin';
+    }
+    return 'unknown';
+  }
+
+  private classifyPhase(fowBalls: string | null, format: string | null): string {
+    if (!fowBalls) return 'unknown';
+    const over = Math.floor(Number(fowBalls));
+    if (Number.isNaN(over)) return 'unknown';
+
+    const f = (format ?? '').toUpperCase();
+    if (f === 'T20' || f === 'T20I') {
+      if (over < 6) return 'powerplay';
+      if (over < 16) return 'middle';
+      return 'death';
+    }
+    if (f === 'ODI') {
+      if (over < 10) return 'powerplay';
+      if (over < 40) return 'middle';
+      return 'death';
+    }
+    return 'other';
+  }
+
+  private toBreakdown(
+    counts: Map<string, number>,
+    total: number,
+  ): DismissalBreakdownRowDto[] {
+    return [...counts.entries()]
+      .map(([label, count]) => ({
+        label,
+        count,
+        percentage: total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.count - a.count);
   }
 
   /** Filters for SportMonks per-season career aggregates (not incomplete scorecards). */

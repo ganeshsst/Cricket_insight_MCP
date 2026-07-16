@@ -27,11 +27,13 @@ All routes are `GET`. Public ids use SportMonks `sportmonks_id`.
 | GET | `/players/compare?ids=` | Compare 2–4 players side by side (comma-separated ids) |
 | GET | `/players/compare-by-name?a=&b=` | Compare two players by name |
 | GET | `/players/by-name/stats?q=` | Resolve a player by name and return profile + batting/bowling stats |
+| GET | `/players/by-name/dismissals?q=` | Resolve a player by name and return dismissal/weakness profile |
 | GET | `/players/:sportmonksId` | Player profile |
 | GET | `/players/:sportmonksId/batting-stats` | Aggregate batting stats |
 | GET | `/players/:sportmonksId/bowling-stats` | Aggregate bowling stats |
 | GET | `/players/:sportmonksId/career` | Per-season batting and bowling career breakdown |
 | GET | `/players/:sportmonksId/matches` | Fixture-level batting and bowling match log |
+| GET | `/players/:sportmonksId/dismissals` | Dismissal breakdown (type, pace vs spin, phase) |
 
 Optional query params for stats/career/matches: `format`, `seasonId`, `leagueId`, `limit`.
 

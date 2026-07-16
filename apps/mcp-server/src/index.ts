@@ -12,7 +12,7 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 config({ path: join(root, '.env') });
 
 const apiBase = process.env.CRICKET_API_URL ?? 'http://localhost:3001';
-const port = Number(process.env.MCP_PORT ?? 3002);
+const port = Number(process.env.MCP_PORT ?? process.env.PORT ?? 3002);
 
 /** Cursor/IDE hosts pipe stdin — use stdio even if .env defaults to http. */
 function resolveTransportMode(): 'stdio' | 'http' {
@@ -172,6 +172,23 @@ server.tool(
     jsonText(
       await apiGet(
         `/players/by-name/stats${buildQuery({ q, format, seasonId, leagueId })}`,
+      ),
+    ),
+);
+
+server.tool(
+  'player_dismissal_analysis',
+  'Data-grounded batting weakness profile: how a player gets out (dismissal type, pace vs spin, bowling style, phase) from ingested scorecards',
+  {
+    q: z.string().describe('Player name e.g. Virat Kohli'),
+    format: z.string().optional(),
+    seasonId: z.number().int().optional(),
+    leagueId: z.number().int().optional(),
+  },
+  async ({ q, format, seasonId, leagueId }) =>
+    jsonText(
+      await apiGet(
+        `/players/by-name/dismissals${buildQuery({ q, format, seasonId, leagueId })}`,
       ),
     ),
 );

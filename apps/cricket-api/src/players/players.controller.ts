@@ -1,6 +1,16 @@
 import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
+  ApiPlayerByNameQuery,
+  ApiPlayerCompareByNameQuery,
+  ApiPlayerCompareQuery,
+  ApiPlayerFormatLeagueQuery,
+  ApiPlayerMatchesQuery,
+  ApiPlayerSearchQuery,
+  ApiPlayerStatsQuery,
+  ApiSportmonksIdParam,
+} from '../common/swagger.decorators.js';
+import {
   PlayerByNameQueryDto,
   PlayerBattingStatsDto,
   PlayerBowlingStatsDto,
@@ -9,6 +19,8 @@ import {
   PlayerCompareByNameQueryDto,
   PlayerCompareDto,
   PlayerCompareQueryDto,
+  PlayerDismissalAnalysisDto,
+  PlayerDismissalByNameQueryDto,
   PlayerMatchLogDto,
   PlayerMatchesQueryDto,
   PlayerProfileDto,
@@ -28,6 +40,7 @@ export class PlayersController {
 
   @Get('search')
   @ApiOperation({ summary: 'Search players by name' })
+  @ApiPlayerSearchQuery()
   @ApiOkResponse({ type: PlayerSearchResultDto, isArray: true })
   search(@Query() query: PlayerSearchQueryDto) {
     return this.playersService.search(query.q, query.limit ?? 20, query.leagueId);
@@ -35,6 +48,7 @@ export class PlayersController {
 
   @Get('compare')
   @ApiOperation({ summary: 'Compare 2–4 players side by side' })
+  @ApiPlayerCompareQuery()
   @ApiOkResponse({ type: PlayerCompareDto })
   compare(@Query() query: PlayerCompareQueryDto) {
     return this.playersService.compare(query);
@@ -42,6 +56,7 @@ export class PlayersController {
 
   @Get('compare-by-name')
   @ApiOperation({ summary: 'Compare two players by name' })
+  @ApiPlayerCompareByNameQuery()
   @ApiOkResponse({ type: PlayerCompareDto })
   compareByName(@Query() query: PlayerCompareByNameQueryDto) {
     return this.playersService.compareByName(query);
@@ -49,13 +64,26 @@ export class PlayersController {
 
   @Get('by-name/stats')
   @ApiOperation({ summary: 'Resolve a player by name and return profile, batting, and bowling stats' })
+  @ApiPlayerByNameQuery()
   @ApiOkResponse({ type: PlayerStatsBundleDto })
   statsByName(@Query() query: PlayerByNameQueryDto) {
     return this.playersService.getStatsByName(query);
   }
 
+  @Get('by-name/dismissals')
+  @ApiOperation({
+    summary: 'Resolve a player by name and return a data-grounded dismissal (batting weakness) profile',
+  })
+  @ApiPlayerByNameQuery()
+  @ApiOkResponse({ type: PlayerDismissalAnalysisDto })
+  dismissalsByName(@Query() query: PlayerDismissalByNameQueryDto) {
+    return this.playersService.getDismissalsByName(query);
+  }
+
   @Get(':sportmonksId/batting-stats')
   @ApiOperation({ summary: 'Aggregate batting stats for a player' })
+  @ApiSportmonksIdParam()
+  @ApiPlayerStatsQuery()
   @ApiOkResponse({ type: PlayerBattingStatsDto })
   battingStats(
     @Param('sportmonksId') sportmonksId: string,
@@ -66,6 +94,8 @@ export class PlayersController {
 
   @Get(':sportmonksId/bowling-stats')
   @ApiOperation({ summary: 'Aggregate bowling stats for a player' })
+  @ApiSportmonksIdParam()
+  @ApiPlayerStatsQuery()
   @ApiOkResponse({ type: PlayerBowlingStatsDto })
   bowlingStats(
     @Param('sportmonksId') sportmonksId: string,
@@ -76,6 +106,8 @@ export class PlayersController {
 
   @Get(':sportmonksId/career')
   @ApiOperation({ summary: 'Per-season career batting and bowling breakdown' })
+  @ApiSportmonksIdParam()
+  @ApiPlayerFormatLeagueQuery()
   @ApiOkResponse({ type: PlayerCareerDto })
   career(
     @Param('sportmonksId') sportmonksId: string,
@@ -86,6 +118,8 @@ export class PlayersController {
 
   @Get(':sportmonksId/matches')
   @ApiOperation({ summary: 'Fixture-level batting and bowling log for a player' })
+  @ApiSportmonksIdParam()
+  @ApiPlayerMatchesQuery()
   @ApiOkResponse({ type: PlayerMatchLogDto })
   matches(
     @Param('sportmonksId') sportmonksId: string,
@@ -94,8 +128,23 @@ export class PlayersController {
     return this.playersService.getMatches(sportmonksId, query);
   }
 
+  @Get(':sportmonksId/dismissals')
+  @ApiOperation({
+    summary: 'Dismissal breakdown (how a batter gets out: type, pace vs spin, phase)',
+  })
+  @ApiSportmonksIdParam()
+  @ApiPlayerStatsQuery()
+  @ApiOkResponse({ type: PlayerDismissalAnalysisDto })
+  dismissals(
+    @Param('sportmonksId') sportmonksId: string,
+    @Query() query: PlayerStatsQueryDto,
+  ) {
+    return this.playersService.getDismissals(sportmonksId, query);
+  }
+
   @Get(':sportmonksId')
   @ApiOperation({ summary: 'Get player profile' })
+  @ApiSportmonksIdParam()
   @ApiOkResponse({ type: PlayerProfileDto })
   getPlayer(@Param('sportmonksId') sportmonksId: string) {
     return this.playersService.getById(sportmonksId);

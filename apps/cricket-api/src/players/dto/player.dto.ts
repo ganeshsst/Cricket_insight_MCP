@@ -127,6 +127,32 @@ export class PlayerMatchesQueryDto extends PlayerStatsQueryDto {
   limit?: number = 20;
 }
 
+export class PlayerDismissalByNameQueryDto extends PlayerStatsQueryDto {
+  @ApiPropertyOptional({ example: 'Virat Kohli' })
+  @IsString()
+  q!: string;
+}
+
+export class DismissalBreakdownRowDto {
+  label!: string;
+  count!: number;
+  percentage!: number;
+}
+
+export class PlayerDismissalAnalysisDto {
+  playerId!: string;
+  playerName!: string | null;
+  scope!: StatsScopeDto;
+  /** Dismissals attributed to how the batter got out (excludes not-outs). */
+  totalDismissals!: number;
+  notOuts!: number;
+  byDismissalType!: DismissalBreakdownRowDto[];
+  byBowlerType!: DismissalBreakdownRowDto[];
+  byBowlingStyle!: DismissalBreakdownRowDto[];
+  byPhase!: DismissalBreakdownRowDto[];
+  note?: string;
+}
+
 export class PlayerCareerSeasonDto {
   seasonId!: string;
   seasonName!: string | null;
