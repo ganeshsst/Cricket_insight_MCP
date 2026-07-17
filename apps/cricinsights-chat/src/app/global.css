@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #e8f4ff;
+  --ink-dim: #9bb4c9;
+  --glass: rgba(12, 28, 42, 0.55);
+  --glass-strong: rgba(8, 20, 32, 0.72);
+  --border: rgba(125, 211, 252, 0.22);
+  --accent: #5eead4;
+  --accent-2: #38bdf8;
+  --glow: rgba(56, 189, 248, 0.35);
+  --danger: #fb7185;
+  --bg0: #031018;
+  --bg1: #0a2233;
+  --bg2: #123047;
+}
+
+@theme inline {
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --color-ink: var(--ink);
+  --color-ink-dim: var(--ink-dim);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-body), system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(56, 189, 248, 0.18), transparent 55%),
+    radial-gradient(900px 500px at 90% 0%, rgba(94, 234, 212, 0.12), transparent 50%),
+    radial-gradient(800px 700px at 50% 110%, rgba(14, 116, 144, 0.25), transparent 55%),
+    linear-gradient(165deg, var(--bg0), var(--bg1) 45%, var(--bg2));
+  background-attachment: fixed;
+}
+
+.glass {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(18px) saturate(1.2);
+  -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+    0 20px 50px -28px rgba(0, 0, 0, 0.65),
+    0 0 40px -20px var(--glow);
+}
+
+.glass-strong {
+  background: var(--glass-strong);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(22px) saturate(1.25);
+  -webkit-backdrop-filter: blur(22px) saturate(1.25);
+}
+
+.display {
+  font-family: var(--font-display), Impact, sans-serif;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

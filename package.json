@@ -17,6 +17,7 @@
     "db:logs": "docker compose logs -f postgres",
     "db:ps": "docker compose ps",
     "dev:web": "nx dev cricinsights",
+    "dev:chat": "nx dev cricinsights-chat",
     "dev:api": "nx run cricket-api:dev",
     "dev:mcp": "nx run mcp-server:dev"
   },
