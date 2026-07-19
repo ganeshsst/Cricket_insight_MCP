@@ -6,9 +6,13 @@ import {
   ApiMatchSearchQuery,
 } from '../common/swagger.decorators.js';
 import {
+  MatchBallsDto,
+  MatchBallsQueryDto,
   MatchCoverageDto,
   MatchDetailDto,
   MatchListQueryDto,
+  MatchOversDto,
+  MatchPartnershipsDto,
   MatchSearchQueryDto,
   MatchScorecardDto,
   MatchSummaryDto,
@@ -39,7 +43,9 @@ export class MatchesController {
   }
 
   @Get('final')
-  @ApiOperation({ summary: 'Get the inferred final for a league season' })
+  @ApiOperation({
+    summary: 'Get the inferred final for a league season (newest Finished match; inferredFinal=true)',
+  })
   @ApiMatchSearchQuery()
   @ApiOkResponse({ type: MatchSummaryDto })
   getFinal(@Query() query: MatchSearchQueryDto) {
@@ -55,11 +61,40 @@ export class MatchesController {
   }
 
   @Get(':fixtureId/coverage')
-  @ApiOperation({ summary: 'Scorecard row coverage for a fixture' })
+  @ApiOperation({ summary: 'Scorecard + ball/over row coverage for a fixture' })
   @ApiFixtureIdParam()
   @ApiOkResponse({ type: MatchCoverageDto })
   getCoverage(@Param('fixtureId') fixtureId: string) {
     return this.matchesService.getCoverage(fixtureId);
+  }
+
+  @Get(':fixtureId/overs')
+  @ApiOperation({ summary: 'Over-by-over runs/wickets (Manhattan chart source)' })
+  @ApiFixtureIdParam()
+  @ApiOkResponse({ type: MatchOversDto })
+  getOvers(@Param('fixtureId') fixtureId: string) {
+    return this.matchesService.getOvers(fixtureId);
+  }
+
+  @Get(':fixtureId/partnerships')
+  @ApiOperation({ summary: 'Partnerships derived from ball-by-ball striker/non-striker pairs' })
+  @ApiFixtureIdParam()
+  @ApiOkResponse({ type: MatchPartnershipsDto })
+  getPartnerships(@Param('fixtureId') fixtureId: string) {
+    return this.matchesService.getPartnerships(fixtureId);
+  }
+
+  @Get(':fixtureId/balls')
+  @ApiOperation({
+    summary: 'Ball-by-ball events (paginated). Includes score outcome names for event-style feeds.',
+  })
+  @ApiFixtureIdParam()
+  @ApiOkResponse({ type: MatchBallsDto })
+  getBalls(
+    @Param('fixtureId') fixtureId: string,
+    @Query() query: MatchBallsQueryDto,
+  ) {
+    return this.matchesService.getBalls(fixtureId, query);
   }
 
   @Get(':fixtureId')

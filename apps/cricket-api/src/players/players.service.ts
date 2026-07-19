@@ -363,7 +363,7 @@ export class PlayersService {
 
     const params: unknown[] = [sportmonksId];
     const conditions = [
-      `(bat.player_id = $1::bigint OR bowl.player_id = $1::bigint)`,
+      `(bat.fixture_id IS NOT NULL OR bowl.fixture_id IS NOT NULL)`,
     ];
     if (filters.leagueId) {
       params.push(filters.leagueId);
@@ -397,7 +397,36 @@ export class PlayersService {
       wickets: number | null;
       economy_rate: string | null;
     }>(
-      `SELECT ff.fixture_id::text,
+      `WITH bat AS (
+         SELECT fixture_id,
+                SUM(runs_scored)::int AS runs_scored,
+                SUM(balls_faced)::int AS balls_faced,
+                SUM(fours)::int AS fours,
+                SUM(sixes)::int AS sixes,
+                CASE
+                  WHEN SUM(balls_faced) > 0
+                  THEN ROUND((SUM(runs_scored)::numeric * 100) / SUM(balls_faced), 2)
+                  ELSE NULL
+                END AS strike_rate
+         FROM matches.fixture_batting
+         WHERE player_id = $1::bigint
+         GROUP BY fixture_id
+       ),
+       bowl AS (
+         SELECT fixture_id,
+                SUM(overs)::numeric AS overs,
+                SUM(runs_conceded)::int AS runs_conceded,
+                SUM(wickets)::int AS wickets,
+                CASE
+                  WHEN SUM(overs) > 0
+                  THEN ROUND(SUM(runs_conceded)::numeric / SUM(overs), 2)
+                  ELSE NULL
+                END AS economy_rate
+         FROM matches.fixture_bowling
+         WHERE player_id = $1::bigint
+         GROUP BY fixture_id
+       )
+       SELECT ff.fixture_id::text,
               ff.date_key::text,
               ff.league_id::text,
               ff.season_id::text,
@@ -415,10 +444,8 @@ export class PlayersService {
        FROM gold.fact_fixture ff
        LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
        LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
-       LEFT JOIN matches.fixture_batting bat
-         ON bat.fixture_id = ff.fixture_id AND bat.player_id = $1::bigint
-       LEFT JOIN matches.fixture_bowling bowl
-         ON bowl.fixture_id = ff.fixture_id AND bowl.player_id = $1::bigint
+       LEFT JOIN bat ON bat.fixture_id = ff.fixture_id
+       LEFT JOIN bowl ON bowl.fixture_id = ff.fixture_id
        WHERE ${conditions.join(' AND ')}
        ORDER BY ff.date_key DESC NULLS LAST, ff.fixture_id DESC
        LIMIT ${limitParam}`,
@@ -548,6 +575,7 @@ export class PlayersService {
     return {
       playerId: sportmonksId,
       playerName: profile.fullname,
+      imagePath: profile.imagePath,
       scope,
       totalDismissals,
       notOuts,

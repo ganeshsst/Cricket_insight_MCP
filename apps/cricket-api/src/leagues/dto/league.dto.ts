@@ -70,6 +70,7 @@ export class SeasonStandingsDto {
 export class BattingLeaderboardRowDto {
   playerId!: string;
   playerName!: string | null;
+  imagePath!: string | null;
   innings!: number;
   runs!: number;
   balls!: number;
@@ -82,6 +83,7 @@ export class BattingLeaderboardRowDto {
 export class BowlingLeaderboardRowDto {
   playerId!: string;
   playerName!: string | null;
+  imagePath!: string | null;
   innings!: number;
   overs!: number;
   maidens!: number;
@@ -110,6 +112,8 @@ export class SeasonCoverageDto {
   totalFixtures!: number;
   fixturesWithBatting!: number;
   fixturesWithBowling!: number;
+  fixturesWithBalls!: number;
+  fixturesWithOvers!: number;
   standingsTeams!: number;
   note?: string;
 }
@@ -117,6 +121,7 @@ export class SeasonCoverageDto {
 export class SeasonAwardPlayerDto {
   playerId!: string;
   playerName!: string | null;
+  imagePath!: string | null;
   innings!: number;
   runs?: number;
   wickets?: number;

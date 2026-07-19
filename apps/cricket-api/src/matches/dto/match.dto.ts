@@ -26,6 +26,14 @@ export class MatchListQueryDto {
   @IsString()
   format?: string;
 
+  @ApiPropertyOptional({
+    description: 'Match status filter e.g. Finished, NS, Live',
+    example: 'Finished',
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
   @ApiPropertyOptional({ default: 20 })
   @IsOptional()
   @Type(() => Number)
@@ -61,6 +69,28 @@ export class MatchSearchQueryDto extends MatchListQueryDto {
   teamBId?: number;
 }
 
+export class MatchBallsQueryDto {
+  @ApiPropertyOptional({ description: 'Filter by scoreboard code e.g. S1' })
+  @IsOptional()
+  @IsString()
+  scoreboard?: string;
+
+  @ApiPropertyOptional({ default: 120, description: 'Max balls to return (1–600)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(600)
+  limit?: number = 120;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number = 0;
+}
+
 export class MatchSummaryDto {
   fixtureId!: string;
   date!: string | null;
@@ -74,7 +104,10 @@ export class MatchSummaryDto {
   visitorTeamName!: string | null;
   winnerTeamId!: string | null;
   venueId!: string | null;
+  /** Derived from status === Live (gold.is_live is unreliable). */
   isLive!: boolean;
+  /** Present when /matches/final returns a date-heuristic result. */
+  inferredFinal?: boolean;
 }
 
 export class MatchInningScoreDto {
@@ -97,6 +130,7 @@ export class MatchDetailDto extends MatchSummaryDto {
 export class ScorecardBattingRowDto {
   playerId!: string;
   playerName!: string | null;
+  imagePath!: string | null;
   teamId!: string;
   sortOrder!: number | null;
   runs!: number | null;
@@ -106,6 +140,10 @@ export class ScorecardBattingRowDto {
   strikeRate!: number | null;
   wicketOutcome!: string | null;
   bowlerId!: string | null;
+  catchStumpPlayerId!: string | null;
+  catchStumpPlayerName!: string | null;
+  runoutByPlayerId!: string | null;
+  runoutByPlayerName!: string | null;
   fowScore!: number | null;
   fowBalls!: string | null;
 }
@@ -113,6 +151,7 @@ export class ScorecardBattingRowDto {
 export class ScorecardBowlingRowDto {
   playerId!: string;
   playerName!: string | null;
+  imagePath!: string | null;
   teamId!: string;
   sortOrder!: number | null;
   overs!: number | null;
@@ -133,6 +172,7 @@ export class ScorecardInningDto {
 export class ScorecardLineupPlayerDto {
   playerId!: string;
   playerName!: string | null;
+  imagePath!: string | null;
   isCaptain!: boolean;
   isWicketkeeper!: boolean;
   isSubstitute!: boolean;
@@ -156,9 +196,78 @@ export class MatchCoverageDto {
   hasBatting!: boolean;
   hasBowling!: boolean;
   hasLineups!: boolean;
+  hasBalls!: boolean;
+  hasOvers!: boolean;
   inningsTotalRows!: number;
   battingRows!: number;
   bowlingRows!: number;
   lineupRows!: number;
+  ballRows!: number;
+  overRows!: number;
+  note?: string;
+}
+
+export class MatchOverDto {
+  scoreboard!: string | null;
+  teamId!: string;
+  teamName!: string | null;
+  overNumber!: number;
+  runsInOver!: number;
+  wicketsInOver!: number;
+  bowlerId!: string | null;
+  bowlerName!: string | null;
+}
+
+export class MatchOversDto {
+  fixtureId!: string;
+  overs!: MatchOverDto[];
+}
+
+export class MatchPartnershipDto {
+  scoreboard!: string | null;
+  teamId!: string | null;
+  teamName!: string | null;
+  wicketNumber!: number;
+  player1Id!: string;
+  player1Name!: string | null;
+  player2Id!: string;
+  player2Name!: string | null;
+  runs!: number;
+  balls!: number;
+  startBall!: string | null;
+  endBall!: string | null;
+}
+
+export class MatchPartnershipsDto {
+  fixtureId!: string;
+  partnerships!: MatchPartnershipDto[];
+  note?: string;
+}
+
+export class MatchBallDto {
+  scoreboard!: string | null;
+  teamId!: string | null;
+  teamName!: string | null;
+  ballNumber!: string;
+  batsmanStrikerId!: string | null;
+  batsmanStrikerName!: string | null;
+  batsmanNonStrikerId!: string | null;
+  batsmanNonStrikerName!: string | null;
+  bowlerId!: string | null;
+  bowlerName!: string | null;
+  runsOnBall!: number | null;
+  isWicket!: boolean;
+  isFour!: boolean;
+  isSix!: boolean;
+  outcome!: string | null;
+  batsmanOutId!: string | null;
+}
+
+export class MatchBallsDto {
+  fixtureId!: string;
+  balls!: MatchBallDto[];
+  totalAvailable!: number;
+  limit!: number;
+  offset!: number;
   note?: string;
 }

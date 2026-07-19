@@ -55,6 +55,7 @@ export function parseModelJson(text: string): CricInsightsResponse {
     .replace(/<\/?no_tool>/gi, '')
     .replace(/<\/?tool_call>/gi, '')
     .replace(/<\/?think>/gi, '')
+    .replace(/<\/?thinking>/gi, '')
     .trim();
 
   const jsonMatch = trimmed.match(/\{[\s\S]*\}/);

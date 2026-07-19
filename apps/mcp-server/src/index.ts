@@ -198,19 +198,20 @@ server.tool(
 
 server.tool(
   'list_matches',
-  'List cricket matches with optional filters',
+  'List cricket matches with optional filters. Prefer status=Finished|NS|Live over isLive (isLive is derived from status).',
   {
     leagueId: z.number().int().optional(),
     seasonId: z.number().int().optional(),
     teamId: z.number().int().optional(),
     format: z.string().optional(),
+    status: z.string().optional().describe('e.g. Finished, NS, Live'),
     limit: z.number().int().min(1).max(100).optional(),
     offset: z.number().int().min(0).optional(),
   },
-  async ({ leagueId, seasonId, teamId, format, limit, offset }) =>
+  async ({ leagueId, seasonId, teamId, format, status, limit, offset }) =>
     jsonText(
       await apiGet(
-        `/matches${buildQuery({ leagueId, seasonId, teamId, format, limit, offset })}`,
+        `/matches${buildQuery({ leagueId, seasonId, teamId, format, status, limit, offset })}`,
       ),
     ),
 );
@@ -226,13 +227,14 @@ server.tool(
     teamBId: z.number().int().optional(),
     type: z.string().optional().describe('e.g. final'),
     format: z.string().optional(),
+    status: z.string().optional().describe('e.g. Finished, NS, Live'),
     limit: z.number().int().min(1).max(100).optional(),
     offset: z.number().int().min(0).optional(),
   },
-  async ({ leagueId, seasonId, teamId, teamAId, teamBId, type, format, limit, offset }) =>
+  async ({ leagueId, seasonId, teamId, teamAId, teamBId, type, format, status, limit, offset }) =>
     jsonText(
       await apiGet(
-        `/matches/search${buildQuery({ leagueId, seasonId, teamId, teamAId, teamBId, type, format, limit, offset })}`,
+        `/matches/search${buildQuery({ leagueId, seasonId, teamId, teamAId, teamBId, type, format, status, limit, offset })}`,
       ),
     ),
 );
@@ -266,9 +268,102 @@ server.tool(
 
 server.tool(
   'get_match_coverage',
-  'Scorecard row coverage for a fixture',
+  'Scorecard + ball/over row coverage for a fixture',
   { fixtureId: z.string().describe('Fixture SportMonks id') },
   async ({ fixtureId }) => jsonText(await apiGet(`/matches/${fixtureId}/coverage`)),
+);
+
+server.tool(
+  'get_match_overs',
+  'Over-by-over runs and wickets for a match (use for Manhattan charts)',
+  { fixtureId: z.string().describe('Fixture SportMonks id') },
+  async ({ fixtureId }) => jsonText(await apiGet(`/matches/${fixtureId}/overs`)),
+);
+
+server.tool(
+  'get_match_partnerships',
+  'Batting partnerships derived from ball-by-ball striker/non-striker pairs',
+  { fixtureId: z.string().describe('Fixture SportMonks id') },
+  async ({ fixtureId }) =>
+    jsonText(await apiGet(`/matches/${fixtureId}/partnerships`)),
+);
+
+server.tool(
+  'get_match_balls',
+  'Paginated ball-by-ball events with score outcomes (event feed, not full commentary text)',
+  {
+    fixtureId: z.string().describe('Fixture SportMonks id'),
+    scoreboard: z.string().optional().describe('e.g. S1'),
+    limit: z.number().int().min(1).max(600).optional().describe('Default 120'),
+    offset: z.number().int().min(0).optional(),
+  },
+  async ({ fixtureId, scoreboard, limit, offset }) =>
+    jsonText(
+      await apiGet(
+        `/matches/${fixtureId}/balls${buildQuery({ scoreboard, limit, offset })}`,
+      ),
+    ),
+);
+
+server.tool(
+  'get_player_matches',
+  'Fixture-level batting/bowling match log for a player (aggregated per fixture)',
+  {
+    sportmonksId: z.string(),
+    format: z.string().optional(),
+    seasonId: z.number().int().optional(),
+    leagueId: z.number().int().optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  },
+  async ({ sportmonksId, format, seasonId, leagueId, limit }) =>
+    jsonText(
+      await apiGet(
+        `/players/${sportmonksId}/matches${buildQuery({ format, seasonId, leagueId, limit })}`,
+      ),
+    ),
+);
+
+server.tool(
+  'get_season_awards',
+  'Orange Cap and Purple Cap for a league season',
+  {
+    leagueId: z.string(),
+    seasonId: z.string(),
+    format: z.string().optional().describe('e.g. T20 for IPL'),
+  },
+  async ({ leagueId, seasonId, format }) =>
+    jsonText(
+      await apiGet(
+        `/leagues/${leagueId}/seasons/${seasonId}/awards${buildQuery({ format })}`,
+      ),
+    ),
+);
+
+server.tool(
+  'get_season_playoffs',
+  'Inferred playoff matches for a league season (heuristic from late-season fixtures)',
+  {
+    leagueId: z.string(),
+    seasonId: z.string(),
+  },
+  async ({ leagueId, seasonId }) =>
+    jsonText(await apiGet(`/leagues/${leagueId}/seasons/${seasonId}/playoffs`)),
+);
+
+server.tool(
+  'get_team_season_stats',
+  'Team win/loss and runs for/against in a season',
+  {
+    teamId: z.string(),
+    seasonId: z.number().int(),
+    leagueId: z.number().int().optional(),
+  },
+  async ({ teamId, seasonId, leagueId }) =>
+    jsonText(
+      await apiGet(
+        `/teams/${teamId}/season-stats${buildQuery({ seasonId, leagueId })}`,
+      ),
+    ),
 );
 
 server.tool(

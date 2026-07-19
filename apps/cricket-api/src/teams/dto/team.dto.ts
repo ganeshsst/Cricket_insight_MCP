@@ -65,6 +65,7 @@ export class TeamHeadToHeadQueryDto {
 export class SquadMemberDto {
   playerId!: string;
   playerName!: string | null;
+  imagePath!: string | null;
   battingstyle!: string | null;
   bowlingstyle!: string | null;
 }

@@ -142,6 +142,7 @@ export class DismissalBreakdownRowDto {
 export class PlayerDismissalAnalysisDto {
   playerId!: string;
   playerName!: string | null;
+  imagePath!: string | null;
   scope!: StatsScopeDto;
   /** Dismissals attributed to how the batter got out (excludes not-outs). */
   totalDismissals!: number;

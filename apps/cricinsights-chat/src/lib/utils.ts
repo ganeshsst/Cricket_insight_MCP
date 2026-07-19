@@ -9,10 +9,22 @@ export function resolvePlayerPhoto(
   imagePath: string | null | undefined,
   name: string,
 ): string {
-  if (imagePath && !imagePath.includes('placeholder')) {
+  if (imagePath && isTrustedPlayerImageUrl(imagePath)) {
     return imagePath;
   }
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=0b1c2c&color=7dd3fc&size=256`;
+}
+
+function isTrustedPlayerImageUrl(url: string): boolean {
+  const normalized = url.trim().toLowerCase();
+  if (!normalized.startsWith('https://')) return false;
+  if (normalized.includes('placeholder') || normalized.includes('example.com')) {
+    return false;
+  }
+  return (
+    normalized.includes('sportmonks.com') ||
+    normalized.includes('ui-avatars.com')
+  );
 }
 
 export function asRecord(input: unknown): Record<string, unknown> {

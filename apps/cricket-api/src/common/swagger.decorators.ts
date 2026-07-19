@@ -188,6 +188,13 @@ export const ApiMatchListQuery = () =>
       example: 'T20',
     }),
     ApiQuery({
+      name: 'status',
+      required: false,
+      type: String,
+      description: 'Match status filter e.g. Finished, NS, Live',
+      example: 'Finished',
+    }),
+    ApiQuery({
       name: 'limit',
       required: false,
       type: Number,

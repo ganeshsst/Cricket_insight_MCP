@@ -152,6 +152,8 @@ export class LeaguesService {
       totalFixtures: coverage.seasonFixtures,
       fixturesWithBatting: coverage.battingFixtures,
       fixturesWithBowling: coverage.bowlingFixtures,
+      fixturesWithBalls: coverage.ballFixtures,
+      fixturesWithOvers: coverage.overFixtures,
       standingsTeams: Number(standings.rows[0]?.count ?? 0),
       note,
     };
@@ -254,6 +256,7 @@ export class LeaguesService {
     const { rows } = await this.db.query<{
       player_id: string;
       player_name: string | null;
+      image_path: string | null;
       innings: string;
       runs: string;
       balls: string;
@@ -264,6 +267,7 @@ export class LeaguesService {
     }>(
       `SELECT pcs.player_id::text,
               p.fullname AS player_name,
+              p.image_path,
               COALESCE(SUM(pcs.batting_innings), 0)::text AS innings,
               COALESCE(SUM(pcs.batting_runs), 0)::text AS runs,
               COALESCE(SUM(pcs.batting_balls_faced), 0)::text AS balls,
@@ -283,7 +287,7 @@ export class LeaguesService {
        JOIN master.seasons s ON s.sportmonks_id = pcs.season_id
        LEFT JOIN master.players p ON p.sportmonks_id = pcs.player_id
        WHERE ${conditions.join(' AND ')}
-       GROUP BY pcs.player_id, p.fullname
+       GROUP BY pcs.player_id, p.fullname, p.image_path
        ORDER BY SUM(pcs.batting_runs) DESC NULLS LAST, SUM(pcs.batting_innings) DESC
        LIMIT ${limitParam}`,
       params,
@@ -292,6 +296,7 @@ export class LeaguesService {
     const batting: BattingLeaderboardRowDto[] = rows.map((row: (typeof rows)[number]) => ({
       playerId: row.player_id,
       playerName: row.player_name,
+      imagePath: row.image_path,
       innings: Number(row.innings),
       runs: Number(row.runs),
       balls: Number(row.balls),
@@ -346,6 +351,7 @@ export class LeaguesService {
     const { rows } = await this.db.query<{
       player_id: string;
       player_name: string | null;
+      image_path: string | null;
       innings: string;
       overs: string;
       maidens: string;
@@ -356,6 +362,7 @@ export class LeaguesService {
     }>(
       `SELECT pcs.player_id::text,
               p.fullname AS player_name,
+              p.image_path,
               COALESCE(SUM(pcs.bowling_innings), 0)::text AS innings,
               COALESCE(SUM(pcs.bowling_overs), 0)::text AS overs,
               COALESCE(SUM(pcs.bowling_maidens), 0)::text AS maidens,
@@ -375,7 +382,7 @@ export class LeaguesService {
        JOIN master.seasons s ON s.sportmonks_id = pcs.season_id
        LEFT JOIN master.players p ON p.sportmonks_id = pcs.player_id
        WHERE ${conditions.join(' AND ')}
-       GROUP BY pcs.player_id, p.fullname
+       GROUP BY pcs.player_id, p.fullname, p.image_path
        ORDER BY SUM(pcs.bowling_wickets) DESC NULLS LAST, SUM(pcs.bowling_overs) DESC
        LIMIT ${limitParam}`,
       params,
@@ -384,6 +391,7 @@ export class LeaguesService {
     const bowling: BowlingLeaderboardRowDto[] = rows.map((row: (typeof rows)[number]) => ({
       playerId: row.player_id,
       playerName: row.player_name,
+      imagePath: row.image_path,
       innings: Number(row.innings),
       overs: Number(row.overs),
       maidens: Number(row.maidens),
@@ -429,6 +437,7 @@ export class LeaguesService {
         ? {
             playerId: orange.playerId,
             playerName: orange.playerName,
+            imagePath: orange.imagePath,
             innings: orange.innings,
             runs: orange.runs,
             strikeRate: orange.strikeRate,
@@ -439,6 +448,7 @@ export class LeaguesService {
         ? {
             playerId: purple.playerId,
             playerName: purple.playerName,
+            imagePath: purple.imagePath,
             innings: purple.innings,
             wickets: purple.wickets,
             economy: purple.economy,
@@ -544,22 +554,34 @@ export class LeaguesService {
     seasonFixtures: number;
     battingFixtures: number;
     bowlingFixtures: number;
+    ballFixtures: number;
+    overFixtures: number;
   }> {
     const coverage = await this.db.query<{
       season_fixtures: string;
       batting_fixtures: string;
       bowling_fixtures: string;
+      ball_fixtures: string;
+      over_fixtures: string;
     }>(
       `SELECT
          (SELECT COUNT(*) FROM gold.fact_fixture WHERE season_id = $1::bigint) AS season_fixtures,
          (SELECT COUNT(DISTINCT fb.fixture_id)
-          FROM gold.fact_batting fb
+          FROM matches.fixture_batting fb
           JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
           WHERE ff.season_id = $1::bigint) AS batting_fixtures,
          (SELECT COUNT(DISTINCT fb.fixture_id)
-          FROM gold.fact_bowling fb
+          FROM matches.fixture_bowling fb
           JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
-          WHERE ff.season_id = $1::bigint) AS bowling_fixtures`,
+          WHERE ff.season_id = $1::bigint) AS bowling_fixtures,
+         (SELECT COUNT(DISTINCT fb.fixture_id)
+          FROM matches.fixture_balls fb
+          JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
+          WHERE ff.season_id = $1::bigint) AS ball_fixtures,
+         (SELECT COUNT(DISTINCT fio.fixture_id)
+          FROM matches.fixture_inning_overs fio
+          JOIN gold.fact_fixture ff ON ff.fixture_id = fio.fixture_id
+          WHERE ff.season_id = $1::bigint) AS over_fixtures`,
       [seasonId],
     );
 
@@ -567,6 +589,8 @@ export class LeaguesService {
       seasonFixtures: Number(coverage.rows[0]?.season_fixtures ?? 0),
       battingFixtures: Number(coverage.rows[0]?.batting_fixtures ?? 0),
       bowlingFixtures: Number(coverage.rows[0]?.bowling_fixtures ?? 0),
+      ballFixtures: Number(coverage.rows[0]?.ball_fixtures ?? 0),
+      overFixtures: Number(coverage.rows[0]?.over_fixtures ?? 0),
     };
   }
 
