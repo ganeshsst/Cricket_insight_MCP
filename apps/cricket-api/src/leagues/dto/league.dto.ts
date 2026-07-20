@@ -55,6 +55,7 @@ export class StandingRowDto {
   draw!: number;
   noResult!: number;
   netRunRate!: number | null;
+  /** Last N finished results (W/L/NR), oldest→newest — derived from fixtures, not fact_standing.recent_form */
   recentForm!: string[] | null;
 }
 

@@ -29,10 +29,12 @@ export function BarChartCard({
   title,
   metric,
   values,
+  insight,
 }: {
   title?: string;
   metric: string;
   values: ChartPoint[];
+  insight?: string;
 }) {
   return (
     <motion.div
@@ -54,6 +56,9 @@ export function BarChartCard({
           </BarChart>
         </ResponsiveContainer>
       </div>
+      {insight ? (
+        <p className="mt-3 text-xs leading-relaxed text-ink-dim">{insight}</p>
+      ) : null}
     </motion.div>
   );
 }

@@ -159,6 +159,12 @@ export class MatchesService {
   }
 
   async getById(fixtureId: string): Promise<MatchDetailDto> {
+    if (!/^\d+$/.test(fixtureId.trim())) {
+      throw new BadRequestException(
+        `fixtureId must be a numeric SportMonks id, got "${fixtureId}". Use search_matches, list_matches, or get_season_final first — never placeholders like "(latest_match_fixture_id)".`,
+      );
+    }
+
     const { rows } = await this.db.query<FixtureDetailRow>(
       `SELECT ${FIXTURE_SELECT},
               ff.toss_won_team_id::text,
@@ -207,6 +213,7 @@ export class MatchesService {
       strike_rate: string | null;
       wicket_outcome: string | null;
       bowling_player_id: string | null;
+      bowling_player_name: string | null;
       catch_stump_player_id: string | null;
       catch_stump_player_name: string | null;
       runout_by_player_id: string | null;
@@ -228,6 +235,7 @@ export class MatchesService {
               fb.strike_rate::text,
               so.name AS wicket_outcome,
               fb.bowling_player_id::text,
+              bp.fullname AS bowling_player_name,
               fb.catch_stump_player_id::text,
               cp.fullname AS catch_stump_player_name,
               fb.runout_by_player_id::text,
@@ -237,6 +245,7 @@ export class MatchesService {
        FROM matches.fixture_batting fb
        LEFT JOIN master.teams t ON t.sportmonks_id = fb.team_id
        LEFT JOIN master.players p ON p.sportmonks_id = fb.player_id
+       LEFT JOIN master.players bp ON bp.sportmonks_id = fb.bowling_player_id
        LEFT JOIN master.players cp ON cp.sportmonks_id = fb.catch_stump_player_id
        LEFT JOIN master.players rp ON rp.sportmonks_id = fb.runout_by_player_id
        LEFT JOIN master.score_outcomes so ON so.sportmonks_id = fb.wicket_outcome_id
@@ -349,6 +358,7 @@ export class MatchesService {
             strikeRate: r.strike_rate != null ? Number(r.strike_rate) : null,
             wicketOutcome: r.wicket_outcome,
             bowlerId: r.bowling_player_id,
+            bowlerName: r.bowling_player_name,
             catchStumpPlayerId: r.catch_stump_player_id,
             catchStumpPlayerName: r.catch_stump_player_name,
             runoutByPlayerId: r.runout_by_player_id,

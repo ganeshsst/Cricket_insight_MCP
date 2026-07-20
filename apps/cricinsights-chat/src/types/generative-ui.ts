@@ -29,34 +29,113 @@ export type PodiumEntry = {
   metric?: string;
 };
 
+export type LayoutType =
+  | 'player_profile'
+  | 'player_comparison'
+  | 'team_profile'
+  | 'tournament'
+  | 'venue'
+  | 'match_snapshot'
+  | 'generic';
+
+export type OverBar = {
+  over: number;
+  runs: number;
+  wickets?: number;
+  bowler?: string;
+};
+
+export type PartnershipRow = {
+  players: string;
+  runs: number;
+  balls?: number;
+  wicketNumber?: number;
+};
+
+export type MatchHeaderData = {
+  title: string;
+  subtitle?: string;
+  status?: string;
+  scoreLine?: string;
+  venue?: string;
+};
+
+export type ScorecardBatter = {
+  name: string;
+  runs: number | string;
+  balls?: number | string;
+  dismissal?: string;
+};
+
+export type ScorecardBowler = {
+  name: string;
+  overs: number | string;
+  maidens?: number | string;
+  runs: number | string;
+  wickets: number | string;
+  economy?: number | string;
+};
+
+export type ComparisonEntity = {
+  name: string;
+  imageUrl?: string | null;
+  subtitle?: string;
+  stats: Record<string, string | number>;
+};
+
 export type UIComponent =
   | { type: 'text'; content: string }
+  | { type: 'player_hero'; player: PlayerHeroData }
+  | { type: 'duel_stage'; playerA: PlayerHeroData; playerB: PlayerHeroData }
   | {
-      type: 'player_hero';
-      player: PlayerHeroData;
-    }
-  | {
-      type: 'duel_stage';
-      playerA: PlayerHeroData;
-      playerB: PlayerHeroData;
+      type: 'comparison_table';
+      title?: string;
+      entities: ComparisonEntity[];
+      metrics?: string[];
     }
   | {
       type: 'bar_chart';
       title?: string;
       metric: string;
       values: ChartPoint[];
+      insight?: string;
     }
   | {
       type: 'line_chart';
       title?: string;
       metric: string;
       values: ChartPoint[];
+      insight?: string;
     }
   | {
       type: 'radar_chart';
       title?: string;
       data: RadarPoint[];
       players?: string[];
+      insight?: string;
+    }
+  | {
+      type: 'manhattan_chart';
+      title?: string;
+      innings: { label: string; overs: OverBar[] }[];
+      insight?: string;
+    }
+  | {
+      type: 'partnerships';
+      title?: string;
+      rows: PartnershipRow[];
+      insight?: string;
+    }
+  | {
+      type: 'match_header';
+      match: MatchHeaderData;
+    }
+  | {
+      type: 'scorecard_mini';
+      title?: string;
+      batting?: ScorecardBatter[];
+      bowling?: ScorecardBowler[];
+      note?: string;
     }
   | {
       type: 'stats_table';
@@ -69,11 +148,25 @@ export type UIComponent =
       entries: PodiumEntry[];
     }
   | {
+      type: 'ai_insights';
+      headline: string;
+      text: string;
+    }
+  | {
       type: 'follow_up_chips';
       prompts: string[];
     };
 
-export type CricInsightsResponse = {
+export type AiSummary = {
+  headline: string;
   text: string;
-  ui?: UIComponent[];
+};
+
+/** Normalized page response for the command-bar UI. */
+export type CricInsightsResponse = {
+  layout: LayoutType;
+  title: string;
+  text: string;
+  ai_summary: AiSummary;
+  ui: UIComponent[];
 };

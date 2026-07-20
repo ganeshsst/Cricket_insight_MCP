@@ -179,7 +179,6 @@ export class LeaguesService {
       draw: number;
       noresult: number;
       net_run_rate: string | null;
-      recent_form: string[] | null;
     }>(
       `SELECT fs.position,
               fs.team_id::text,
@@ -190,14 +189,15 @@ export class LeaguesService {
               fs.lost,
               fs.draw,
               fs.noresult,
-              fs.net_run_rate::text,
-              fs.recent_form
+              fs.net_run_rate::text
        FROM gold.fact_standing fs
        LEFT JOIN master.teams t ON t.sportmonks_id = fs.team_id
        WHERE fs.league_id = $1::bigint AND fs.season_id = $2::bigint
        ORDER BY fs.position ASC NULLS LAST, fs.points DESC`,
       [leagueId, seasonId],
     );
+
+    const formByTeam = await this.getRecentFormByTeam(seasonId, 5);
 
     const standings: StandingRowDto[] = rows.map((row: (typeof rows)[number]) => ({
       position: Number(row.position),
@@ -210,10 +210,14 @@ export class LeaguesService {
       draw: Number(row.draw),
       noResult: Number(row.noresult),
       netRunRate: row.net_run_rate != null ? Number(row.net_run_rate) : null,
-      recentForm: row.recent_form,
+      // Derived from finished fixtures — do not use gold.fact_standing.recent_form (often wrong).
+      recentForm: formByTeam.get(String(row.team_id).trim()) ?? [],
     }));
 
     const coverage = await this.queryCoverageCounts(seasonId);
+    const baseNote = this.coverageNote(coverage);
+    const formNote =
+      'recentForm is the last 5 finished matches in the season including playoffs (W/L/NR), oldest→newest (rightmost = most recent).';
 
     return {
       leagueId,
@@ -221,8 +225,82 @@ export class LeaguesService {
       leagueName: scope.leagueName,
       seasonName: scope.seasonName,
       standings,
-      note: this.coverageNote(coverage),
+      note: baseNote ? `${baseNote} ${formNote}` : formNote,
     };
+  }
+
+  /**
+   * Last N finished results per team in the season (league + playoffs).
+   * Chronological by date_key; rightmost = most recent (e.g. Final counts).
+   * Result codes: W / L / NR.
+   */
+  private async getRecentFormByTeam(
+    seasonId: string,
+    lastN = 5,
+  ): Promise<Map<string, string[]>> {
+    const { rows } = await this.db.query<{
+      team_id: string;
+      result: string;
+      rn: string;
+    }>(
+      `WITH results AS (
+         SELECT ff.date_key,
+                ff.fixture_id,
+                ff.localteam_id::text AS team_id,
+                CASE
+                  WHEN ff.winner_team_id IS NULL THEN 'NR'
+                  WHEN ff.winner_team_id = ff.localteam_id THEN 'W'
+                  ELSE 'L'
+                END AS result
+         FROM gold.fact_fixture ff
+         WHERE ff.season_id = $1::bigint
+           AND (
+             LOWER(TRIM(COALESCE(ff.status, ''))) = 'finished'
+             OR ff.winner_team_id IS NOT NULL
+           )
+           AND ff.localteam_id IS NOT NULL
+         UNION ALL
+         SELECT ff.date_key,
+                ff.fixture_id,
+                ff.visitorteam_id::text,
+                CASE
+                  WHEN ff.winner_team_id IS NULL THEN 'NR'
+                  WHEN ff.winner_team_id = ff.visitorteam_id THEN 'W'
+                  ELSE 'L'
+                END
+         FROM gold.fact_fixture ff
+         WHERE ff.season_id = $1::bigint
+           AND (
+             LOWER(TRIM(COALESCE(ff.status, ''))) = 'finished'
+             OR ff.winner_team_id IS NOT NULL
+           )
+           AND ff.visitorteam_id IS NOT NULL
+       ),
+       ranked AS (
+         SELECT team_id,
+                result,
+                ROW_NUMBER() OVER (
+                  PARTITION BY team_id
+                  ORDER BY date_key DESC NULLS LAST, fixture_id DESC
+                ) AS rn
+         FROM results
+       )
+       SELECT team_id, result, rn::text
+       FROM ranked
+       WHERE rn <= $2::int
+       ORDER BY team_id, rn DESC`,
+      [seasonId, lastN],
+    );
+
+    const map = new Map<string, string[]>();
+    for (const row of rows) {
+      const teamId = String(row.team_id).trim();
+      if (!teamId) continue;
+      const list = map.get(teamId) ?? [];
+      list.push(row.result);
+      map.set(teamId, list);
+    }
+    return map;
   }
 
   async getBattingLeaderboard(

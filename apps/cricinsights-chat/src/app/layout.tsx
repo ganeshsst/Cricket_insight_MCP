@@ -15,8 +15,8 @@ const space = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'CricInsights Chat',
-  description: 'Glassy generative UI cricket chatbot',
+  title: 'CricInsights',
+  description: 'AI cricket analytics pages — glass UI from live database tools',
 };
 
 export default function RootLayout({

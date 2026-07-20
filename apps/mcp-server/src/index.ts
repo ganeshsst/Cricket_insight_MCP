@@ -390,7 +390,7 @@ server.tool(
 
 server.tool(
   'get_season_standings',
-  'Points table / standings for a league season',
+  'Points table / standings for a league season. recentForm is last 5 finished matches including playoffs (W/L/NR, oldest→newest; rightmost = most recent).',
   {
     leagueId: z.string(),
     seasonId: z.string(),

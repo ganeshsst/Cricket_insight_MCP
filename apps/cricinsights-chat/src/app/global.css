@@ -68,3 +68,26 @@ body {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+.command-bar {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+.thread-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+}
+
+.answer-card {
+  contain: layout paint;
+}
+
+.answer-card table {
+  max-width: 100%;
+}
+
+.answer-card .recharts-wrapper,
+.answer-card .recharts-responsive-container {
+  max-width: 100% !important;
+}
+

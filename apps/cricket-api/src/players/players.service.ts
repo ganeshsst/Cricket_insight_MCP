@@ -90,6 +90,12 @@ export class PlayersService {
   }
 
   async getById(sportmonksId: string): Promise<PlayerProfileDto> {
+    if (!/^\d+$/.test(sportmonksId.trim())) {
+      throw new BadRequestException(
+        `sportmonksId must be a numeric SportMonks id, got "${sportmonksId}". Use /players/by-name/* or search_players first.`,
+      );
+    }
+
     const { rows } = await this.db.query<PlayerRow>(
       `SELECT sportmonks_id::text, fullname, firstname, lastname,
               country_id::text, position_id::text, dateofbirth::text,

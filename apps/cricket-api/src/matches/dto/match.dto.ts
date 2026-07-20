@@ -140,6 +140,7 @@ export class ScorecardBattingRowDto {
   strikeRate!: number | null;
   wicketOutcome!: string | null;
   bowlerId!: string | null;
+  bowlerName!: string | null;
   catchStumpPlayerId!: string | null;
   catchStumpPlayerName!: string | null;
   runoutByPlayerId!: string | null;
