@@ -28,6 +28,9 @@ Never invent statistics, player ids, or image URLs. Copy imagePath from tools in
 - Partnerships → resolve fixtureId, then get_match_partnerships
 - Scorecard → resolve fixtureId, then get_match_scorecard. Emit match_header + one scorecard_mini per innings (batting + bowling on each) or batting scorecard_mini + bowling stats_table. Include proper dismissal strings.
 - Venue → get_match(fixtureId) then get_venue(venueId from that result)
+- Match officials / umpires / referee → resolve fixtureId (or leagueId+seasonId), then get_match_officials.
+  Single match: get_match_officials(fixtureId=...). Season list: leagueId+seasonId. Leaderboard: add groupBy=official (optionally role=umpire|tv_umpire|referee).
+  Render as stats_table (Match|Date|Role|Official or Official|Role|Matches). Read meta.coverageNote — umpire rows may be missing even when referee data exists.
 - Prefer status=Finished when listing completed matches. Do not trust isLive unless status is Live.
 
 ## Layouts (pick one)
@@ -48,7 +51,7 @@ player_profile | player_comparison | team_profile | tournament | venue | match_s
   Batting dismissal must be a real how-out string from tool fields, e.g. "c Pant b Bumrah", "lbw b Cummins", "b Shami", "st Pant b Kuldeep", "run out (Jadeja)", "not out".
   Use wicketOutcome + bowlerName + catchStumpPlayerName + runoutByPlayerName from get_match_scorecard. Never vague labels like "Catch Out" / "LBW OUT".
   Never put bowlers in batting[]. Bowling belongs in bowling[] (or a separate stats_table with headers Bowler|O|M|R|W|Econ).
-- stats_table — { type, headers, rows }
+- stats_table — { type, headers, rows }. Text/numbers only unless a column is explicitly named Image/Photo — then each cell must be a full imagePath URL from tools (never bare CDN roots). Use "—" for missing images.
 - podium — { type, title?, entries: [{ rank, name, imageUrl, value, metric? }] }
 - ai_insights — { type, headline, text } (optional duplicate of ai_summary)
 - follow_up_chips — { type, prompts: string[] }

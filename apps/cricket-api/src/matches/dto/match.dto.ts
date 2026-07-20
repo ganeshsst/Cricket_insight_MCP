@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class MatchListQueryDto {
   @ApiPropertyOptional()
@@ -271,4 +271,92 @@ export class MatchBallsDto {
   limit!: number;
   offset!: number;
   note?: string;
+}
+
+export class MatchOfficialsQueryDto {
+  @ApiPropertyOptional({ description: 'Fixture SportMonks id — single-match officials' })
+  @IsOptional()
+  @IsString()
+  fixtureId?: string;
+
+  @ApiPropertyOptional({ example: 1, description: 'League SportMonks id (requires seasonId)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  leagueId?: number;
+
+  @ApiPropertyOptional({ example: 1795, description: 'Season SportMonks id (requires leagueId)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  seasonId?: number;
+
+  @ApiPropertyOptional({ description: 'Filter to one official SportMonks id' })
+  @IsOptional()
+  @IsString()
+  officialId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by official name fragment' })
+  @IsOptional()
+  @IsString()
+  officialName?: string;
+
+  @ApiPropertyOptional({
+    enum: ['umpire', 'tv_umpire', 'referee'],
+    description: 'umpire = on-field umpires (first + second)',
+  })
+  @IsOptional()
+  @IsIn(['umpire', 'tv_umpire', 'referee'])
+  role?: 'umpire' | 'tv_umpire' | 'referee';
+
+  @ApiPropertyOptional({
+    enum: ['fixture', 'official'],
+    description: 'fixture = per-match rows; official = leaderboard by matches officiated',
+  })
+  @IsOptional()
+  @IsIn(['fixture', 'official'])
+  groupBy?: 'fixture' | 'official';
+
+  @ApiPropertyOptional({ default: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(200)
+  limit?: number = 50;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  offset?: number = 0;
+}
+
+export class MatchOfficialRowDto {
+  fixtureId!: string | null;
+  date!: string | null;
+  matchTitle!: string | null;
+  localTeamName!: string | null;
+  visitorTeamName!: string | null;
+  officialId!: string;
+  officialName!: string | null;
+  role!: string;
+  roleLabel!: string;
+  matchesOfficiated!: number | null;
+}
+
+export class MatchOfficialsDto {
+  mode!: 'fixture' | 'season';
+  groupBy!: 'fixture' | 'official';
+  fixtureId!: string | null;
+  leagueId!: string | null;
+  seasonId!: string | null;
+  rows!: MatchOfficialRowDto[];
+  meta!: {
+    total: number;
+    limit: number;
+    offset: number;
+    coverageNote?: string;
+  };
 }

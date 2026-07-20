@@ -8,6 +8,9 @@ import type {
   MatchDetailDto,
   MatchInningScoreDto,
   MatchListQueryDto,
+  MatchOfficialRowDto,
+  MatchOfficialsDto,
+  MatchOfficialsQueryDto,
   MatchOverDto,
   MatchOversDto,
   MatchPartnershipDto,
@@ -638,7 +641,10 @@ export class MatchesService {
     return { fixtureId, partnerships };
   }
 
-  async getBalls(fixtureId: string, query: MatchBallsQueryDto): Promise<MatchBallsDto> {
+  async getBalls(
+    fixtureId: string,
+    query: MatchBallsQueryDto,
+  ): Promise<MatchBallsDto> {
     await this.getById(fixtureId);
 
     const limit = query.limit ?? 120;
@@ -743,6 +749,317 @@ export class MatchesService {
             ? `Returning ${balls.length} of ${totalAvailable} balls. Increase limit or paginate with offset.`
             : undefined,
     };
+  }
+
+  private static readonly OFFICIAL_ROLES_CTE = `
+    WITH official_roles AS (
+      SELECT mf.sportmonks_id AS fixture_id,
+             ff.date_key,
+             ff.league_id,
+             ff.season_id,
+             lt.name AS local_team_name,
+             vt.name AS visitor_team_name,
+             'first_umpire' AS role,
+             'First umpire' AS role_label,
+             mf.first_umpire_id AS official_id
+      FROM matches.fixtures mf
+      JOIN gold.fact_fixture ff ON ff.fixture_id = mf.sportmonks_id
+      LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
+      LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
+      UNION ALL
+      SELECT mf.sportmonks_id,
+             ff.date_key,
+             ff.league_id,
+             ff.season_id,
+             lt.name,
+             vt.name,
+             'second_umpire',
+             'Second umpire',
+             mf.second_umpire_id
+      FROM matches.fixtures mf
+      JOIN gold.fact_fixture ff ON ff.fixture_id = mf.sportmonks_id
+      LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
+      LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
+      UNION ALL
+      SELECT mf.sportmonks_id,
+             ff.date_key,
+             ff.league_id,
+             ff.season_id,
+             lt.name,
+             vt.name,
+             'tv_umpire',
+             'TV umpire',
+             mf.tv_umpire_id
+      FROM matches.fixtures mf
+      JOIN gold.fact_fixture ff ON ff.fixture_id = mf.sportmonks_id
+      LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
+      LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
+      UNION ALL
+      SELECT mf.sportmonks_id,
+             ff.date_key,
+             ff.league_id,
+             ff.season_id,
+             lt.name,
+             vt.name,
+             'referee',
+             'Match referee',
+             mf.referee_id
+      FROM matches.fixtures mf
+      JOIN gold.fact_fixture ff ON ff.fixture_id = mf.sportmonks_id
+      LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
+      LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
+    )`;
+
+  async getOfficials(query: MatchOfficialsQueryDto): Promise<MatchOfficialsDto> {
+    const fixtureId = query.fixtureId?.trim();
+    const groupBy = query.groupBy ?? 'fixture';
+    const limit = query.limit ?? 50;
+    const offset = query.offset ?? 0;
+
+    if (!fixtureId && (query.leagueId == null || query.seasonId == null)) {
+      throw new BadRequestException(
+        'fixtureId or both leagueId and seasonId are required for match officials.',
+      );
+    }
+    if (fixtureId && !/^\d+$/.test(fixtureId)) {
+      throw new BadRequestException(
+        `fixtureId must be a numeric SportMonks id, got "${fixtureId}".`,
+      );
+    }
+    if (query.officialId && !/^\d+$/.test(query.officialId.trim())) {
+      throw new BadRequestException(
+        `officialId must be a numeric SportMonks id, got "${query.officialId}".`,
+      );
+    }
+
+    const params: unknown[] = [];
+    const conditions: string[] = ['r.official_id IS NOT NULL'];
+
+    if (fixtureId) {
+      params.push(fixtureId);
+      conditions.push(`r.fixture_id = $${params.length}::bigint`);
+    }
+    if (query.leagueId != null) {
+      params.push(query.leagueId);
+      conditions.push(`r.league_id = $${params.length}::bigint`);
+    }
+    if (query.seasonId != null) {
+      params.push(query.seasonId);
+      conditions.push(`r.season_id = $${params.length}::bigint`);
+    }
+    if (query.officialId) {
+      params.push(query.officialId.trim());
+      conditions.push(`r.official_id = $${params.length}::bigint`);
+    }
+    if (query.officialName?.trim()) {
+      params.push(`%${query.officialName.trim()}%`);
+      conditions.push(`o.fullname ILIKE $${params.length}`);
+    }
+    if (query.role === 'umpire') {
+      conditions.push(`r.role IN ('first_umpire', 'second_umpire')`);
+    } else if (query.role) {
+      params.push(query.role);
+      conditions.push(`r.role = $${params.length}`);
+    }
+
+    const whereClause = conditions.join(' AND ');
+    const countResult = await this.db.query<{ n: string }>(
+      `${MatchesService.OFFICIAL_ROLES_CTE}
+       SELECT COUNT(*)::text AS n
+       FROM (
+         ${
+           groupBy === 'official'
+             ? `SELECT DISTINCT r.official_id, r.role
+                FROM official_roles r
+                JOIN master.officials o ON o.sportmonks_id = r.official_id
+                WHERE ${whereClause}`
+             : `SELECT DISTINCT r.fixture_id, r.role, r.official_id
+                FROM official_roles r
+                JOIN master.officials o ON o.sportmonks_id = r.official_id
+                WHERE ${whereClause}`
+         }
+       ) counted`,
+      params,
+    );
+    const total = Number(countResult.rows[0]?.n ?? 0);
+
+    params.push(limit);
+    const limitParam = `$${params.length}`;
+    params.push(offset);
+    const offsetParam = `$${params.length}`;
+
+    let rows: MatchOfficialRowDto[];
+
+    if (groupBy === 'official') {
+      const result = await this.db.query<{
+        official_id: string;
+        official_name: string | null;
+        role: string;
+        role_label: string;
+        matches_officiated: number;
+      }>(
+        `${MatchesService.OFFICIAL_ROLES_CTE}
+         SELECT r.official_id::text,
+                o.fullname AS official_name,
+                r.role,
+                r.role_label,
+                COUNT(DISTINCT r.fixture_id)::int AS matches_officiated
+         FROM official_roles r
+         JOIN master.officials o ON o.sportmonks_id = r.official_id
+         WHERE ${whereClause}
+         GROUP BY r.official_id, o.fullname, r.role, r.role_label
+         ORDER BY matches_officiated DESC, official_name ASC NULLS LAST, r.role
+         LIMIT ${limitParam} OFFSET ${offsetParam}`,
+        params,
+      );
+
+      rows = result.rows.map((row) => ({
+        fixtureId: null,
+        date: null,
+        matchTitle: null,
+        localTeamName: null,
+        visitorTeamName: null,
+        officialId: row.official_id,
+        officialName: row.official_name,
+        role: row.role,
+        roleLabel: row.role_label,
+        matchesOfficiated: row.matches_officiated,
+      }));
+    } else {
+      const result = await this.db.query<{
+        fixture_id: string;
+        date_key: string | null;
+        local_team_name: string | null;
+        visitor_team_name: string | null;
+        official_id: string;
+        official_name: string | null;
+        role: string;
+        role_label: string;
+      }>(
+        `${MatchesService.OFFICIAL_ROLES_CTE}
+         SELECT r.fixture_id::text,
+                r.date_key::text,
+                r.local_team_name,
+                r.visitor_team_name,
+                r.official_id::text,
+                o.fullname AS official_name,
+                r.role,
+                r.role_label
+         FROM official_roles r
+         JOIN master.officials o ON o.sportmonks_id = r.official_id
+         WHERE ${whereClause}
+         ORDER BY r.date_key DESC NULLS LAST,
+                  r.fixture_id DESC,
+                  CASE r.role
+                    WHEN 'first_umpire' THEN 1
+                    WHEN 'second_umpire' THEN 2
+                    WHEN 'tv_umpire' THEN 3
+                    WHEN 'referee' THEN 4
+                    ELSE 5
+                  END
+         LIMIT ${limitParam} OFFSET ${offsetParam}`,
+        params,
+      );
+
+      rows = result.rows.map((row) => ({
+        fixtureId: row.fixture_id,
+        date: row.date_key,
+        matchTitle:
+          row.local_team_name && row.visitor_team_name
+            ? `${row.local_team_name} vs ${row.visitor_team_name}`
+            : null,
+        localTeamName: row.local_team_name,
+        visitorTeamName: row.visitor_team_name,
+        officialId: row.official_id,
+        officialName: row.official_name,
+        role: row.role,
+        roleLabel: row.role_label,
+        matchesOfficiated: null,
+      }));
+    }
+
+    const coverageNote = await this.buildOfficialsCoverageNote(
+      fixtureId,
+      query.leagueId,
+      query.seasonId,
+    );
+
+    return {
+      mode: fixtureId ? 'fixture' : 'season',
+      groupBy,
+      fixtureId: fixtureId ?? null,
+      leagueId: query.leagueId != null ? String(query.leagueId) : null,
+      seasonId: query.seasonId != null ? String(query.seasonId) : null,
+      rows,
+      meta: {
+        total,
+        limit,
+        offset,
+        coverageNote,
+      },
+    };
+  }
+
+  private async buildOfficialsCoverageNote(
+    fixtureId: string | undefined,
+    leagueId?: number,
+    seasonId?: number,
+  ): Promise<string | undefined> {
+    const params: unknown[] = [];
+    const conditions: string[] = ['1=1'];
+
+    if (fixtureId) {
+      params.push(fixtureId);
+      conditions.push(`mf.sportmonks_id = $${params.length}::bigint`);
+    } else {
+      if (leagueId != null) {
+        params.push(leagueId);
+        conditions.push(`ff.league_id = $${params.length}::bigint`);
+      }
+      if (seasonId != null) {
+        params.push(seasonId);
+        conditions.push(`ff.season_id = $${params.length}::bigint`);
+      }
+    }
+
+    const { rows } = await this.db.query<{
+      total: number;
+      first_umpire: number;
+      second_umpire: number;
+      tv_umpire: number;
+      referee: number;
+    }>(
+      `SELECT COUNT(*)::int AS total,
+              COUNT(mf.first_umpire_id)::int AS first_umpire,
+              COUNT(mf.second_umpire_id)::int AS second_umpire,
+              COUNT(mf.tv_umpire_id)::int AS tv_umpire,
+              COUNT(mf.referee_id)::int AS referee
+       FROM matches.fixtures mf
+       JOIN gold.fact_fixture ff ON ff.fixture_id = mf.sportmonks_id
+       WHERE ${conditions.join(' AND ')}`,
+      params,
+    );
+
+    const row = rows[0];
+    if (!row || row.total === 0) {
+      return 'No fixtures found for the requested scope.';
+    }
+
+    const notes: string[] = [];
+    if (row.first_umpire === 0 && row.second_umpire === 0 && row.tv_umpire === 0) {
+      notes.push(
+        'On-field and TV umpire assignments are not loaded in the database for this scope.',
+      );
+    }
+    if (row.referee === 0) {
+      notes.push('Match referee assignments are not loaded for this scope.');
+    } else if (row.referee < row.total) {
+      notes.push(
+        `Referee data is partial (${row.referee}/${row.total} fixtures).`,
+      );
+    }
+
+    return notes.length > 0 ? notes.join(' ') : undefined;
   }
 
   private toPartnershipDto(acc: {

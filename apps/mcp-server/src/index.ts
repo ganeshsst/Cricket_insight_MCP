@@ -252,6 +252,54 @@ server.tool(
 );
 
 server.tool(
+  'get_match_officials',
+  'Match officials: on-field umpires, TV umpire, and match referee. Use fixtureId for one match, or leagueId+seasonId for a season. groupBy=official returns a leaderboard by matches officiated.',
+  {
+    fixtureId: z.string().optional().describe('Fixture SportMonks id'),
+    leagueId: z.number().int().optional().describe('League SportMonks id e.g. 1 for IPL'),
+    seasonId: z.number().int().optional().describe('Season SportMonks id e.g. 1795 for IPL 2026'),
+    officialId: z.string().optional().describe('Filter to one official SportMonks id'),
+    officialName: z.string().optional().describe('Filter by official name fragment'),
+    role: z
+      .enum(['umpire', 'tv_umpire', 'referee'])
+      .optional()
+      .describe('umpire = first + second on-field umpires'),
+    groupBy: z
+      .enum(['fixture', 'official'])
+      .optional()
+      .describe('fixture = per-match rows; official = leaderboard'),
+    limit: z.number().int().min(1).max(200).optional(),
+    offset: z.number().int().min(0).optional(),
+  },
+  async ({
+    fixtureId,
+    leagueId,
+    seasonId,
+    officialId,
+    officialName,
+    role,
+    groupBy,
+    limit,
+    offset,
+  }) =>
+    jsonText(
+      await apiGet(
+        `/matches/officials${buildQuery({
+          fixtureId,
+          leagueId,
+          seasonId,
+          officialId,
+          officialName,
+          role,
+          groupBy,
+          limit,
+          offset,
+        })}`,
+      ),
+    ),
+);
+
+server.tool(
   'get_match',
   'Get match detail including innings scores',
   { fixtureId: z.string().describe('Fixture SportMonks id') },

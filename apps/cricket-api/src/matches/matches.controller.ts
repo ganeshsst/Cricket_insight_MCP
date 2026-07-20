@@ -11,6 +11,8 @@ import {
   MatchCoverageDto,
   MatchDetailDto,
   MatchListQueryDto,
+  MatchOfficialsDto,
+  MatchOfficialsQueryDto,
   MatchOversDto,
   MatchPartnershipsDto,
   MatchSearchQueryDto,
@@ -50,6 +52,16 @@ export class MatchesController {
   @ApiOkResponse({ type: MatchSummaryDto })
   getFinal(@Query() query: MatchSearchQueryDto) {
     return this.matchesService.getSeasonFinal(query);
+  }
+
+  @Get('officials')
+  @ApiOperation({
+    summary:
+      'Match officials (umpires, TV umpire, referee) for one fixture or a league season',
+  })
+  @ApiOkResponse({ type: MatchOfficialsDto })
+  getOfficials(@Query() query: MatchOfficialsQueryDto) {
+    return this.matchesService.getOfficials(query);
   }
 
   @Get(':fixtureId/scorecard')

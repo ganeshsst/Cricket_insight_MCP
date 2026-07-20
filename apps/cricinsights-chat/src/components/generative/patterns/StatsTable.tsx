@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 
 function isFormHeader(header: string): boolean {
@@ -10,6 +11,30 @@ function isFormHeader(header: string): boolean {
     h.includes('recent form') ||
     h === 'last 5'
   );
+}
+
+function isImageHeader(header: string): boolean {
+  return /image|photo|logo|thumbnail|picture/i.test(header.trim());
+}
+
+function isRenderableImageUrl(value: string | number): boolean {
+  const raw = String(value).trim();
+  if (!raw || raw.toLowerCase() === 'null') return false;
+  try {
+    const url = new URL(raw);
+    if (!['http:', 'https:'].includes(url.protocol)) return false;
+    // Reject bare CDN roots with no asset path (e.g. https://cdn.sportmonks.com/)
+    const path = url.pathname.replace(/\/+$/, '');
+    return path.length > 1;
+  } catch {
+    return false;
+  }
+}
+
+function displayCellValue(cell: string | number): string {
+  const raw = String(cell).trim();
+  if (!raw || raw.toLowerCase() === 'null') return '—';
+  return raw;
 }
 
 function parseFormTokens(cell: string | number): string[] | null {
@@ -62,18 +87,45 @@ function FormPills({ tokens }: { tokens: string[] }) {
   );
 }
 
+function TableImage({ src, alt }: { src: string; alt: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <span className="text-ink-dim">—</span>;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={alt}
+      className="h-11 w-11 rounded-lg object-cover bg-white/5 ring-1 ring-sky-200/15"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function CellContent({
   cell,
   forceForm,
+  forceImage,
 }: {
   cell: string | number;
   forceForm: boolean;
+  forceImage: boolean;
 }) {
   const tokens = parseFormTokens(cell);
   if (tokens && (forceForm || tokens.length >= 3)) {
     return <FormPills tokens={tokens} />;
   }
-  return <>{cell}</>;
+
+  if (forceImage || isRenderableImageUrl(cell)) {
+    if (!isRenderableImageUrl(cell)) {
+      return <span className="text-ink-dim">—</span>;
+    }
+    return <TableImage src={String(cell).trim()} alt="" />;
+  }
+
+  return <>{displayCellValue(cell)}</>;
 }
 
 export function StatsTable({
@@ -86,6 +138,11 @@ export function StatsTable({
   const formCols = new Set(
     headers
       .map((h, i) => (isFormHeader(h) ? i : -1))
+      .filter((i) => i >= 0),
+  );
+  const imageCols = new Set(
+    headers
+      .map((h, i) => (isImageHeader(h) ? i : -1))
       .filter((i) => i >= 0),
   );
 
@@ -114,7 +171,11 @@ export function StatsTable({
               <tr key={i} className="border-b border-sky-200/10 last:border-0">
                 {row.map((cell, j) => (
                   <td key={j} className="px-4 py-2.5 text-ink align-middle">
-                    <CellContent cell={cell} forceForm={formCols.has(j)} />
+                    <CellContent
+                      cell={cell}
+                      forceForm={formCols.has(j)}
+                      forceImage={imageCols.has(j)}
+                    />
                   </td>
                 ))}
               </tr>
