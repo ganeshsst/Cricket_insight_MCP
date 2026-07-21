@@ -133,6 +133,58 @@ export const ApiPlayerCompareByNameQuery = () =>
     ApiPlayerStatsQuery(),
   );
 
+export const ApiPlayerMatchupQuery = () =>
+  applyDecorators(
+    ApiQuery({
+      name: 'batterId',
+      required: true,
+      type: String,
+      description: 'Batter SportMonks id',
+      example: '46',
+    }),
+    ApiQuery({
+      name: 'bowlerId',
+      required: true,
+      type: String,
+      description: 'Bowler SportMonks id',
+      example: '55',
+    }),
+    ApiPlayerStatsQuery(),
+  );
+
+export const ApiPlayerMatchupByNameQuery = () =>
+  applyDecorators(
+    ApiQuery({
+      name: 'batter',
+      required: false,
+      type: String,
+      description: 'Batter name (prefer with bowler)',
+      example: 'Virat Kohli',
+    }),
+    ApiQuery({
+      name: 'bowler',
+      required: false,
+      type: String,
+      description: 'Bowler name (prefer with batter)',
+      example: 'Jasprit Bumrah',
+    }),
+    ApiQuery({
+      name: 'a',
+      required: false,
+      type: String,
+      description: 'Player A when roles are inferred',
+      example: 'Virat Kohli',
+    }),
+    ApiQuery({
+      name: 'b',
+      required: false,
+      type: String,
+      description: 'Player B when roles are inferred',
+      example: 'Jasprit Bumrah',
+    }),
+    ApiPlayerStatsQuery(),
+  );
+
 export const ApiPlayerCompareQuery = () =>
   applyDecorators(
     ApiQuery({

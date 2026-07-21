@@ -163,6 +163,34 @@ server.tool(
 );
 
 server.tool(
+  'get_batter_bowler_matchup',
+  'True batter vs bowler head-to-head: dismissals and ball-level stats when available. Prefer batter+bowler names; or pass a+b to infer who is batter vs bowler.',
+  {
+    batter: z.string().optional().describe('Batter name e.g. Virat Kohli'),
+    bowler: z.string().optional().describe('Bowler name e.g. Jasprit Bumrah'),
+    a: z.string().optional().describe('Player A if roles not specified'),
+    b: z.string().optional().describe('Player B if roles not specified'),
+    format: z.string().optional(),
+    seasonId: z.number().int().optional(),
+    leagueId: z.number().int().optional(),
+  },
+  async ({ batter, bowler, a, b, format, seasonId, leagueId }) =>
+    jsonText(
+      await apiGet(
+        `/players/matchup-by-name${buildQuery({
+          batter,
+          bowler,
+          a,
+          b,
+          format,
+          seasonId,
+          leagueId,
+        })}`,
+      ),
+    ),
+);
+
+server.tool(
   'get_player_stats_by_name',
   'Resolve a player by name and return profile plus batting and bowling stats',
   {

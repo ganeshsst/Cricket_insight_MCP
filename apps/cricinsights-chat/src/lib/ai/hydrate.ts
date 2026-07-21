@@ -86,7 +86,7 @@ function guessLayout(widgets: UIComponent[]): LayoutType {
   ) {
     return 'match_snapshot';
   }
-  if (types.has('comparison_table') || types.has('duel_stage')) {
+  if (types.has('comparison_table') || types.has('duel_stage') || types.has('metric_duel')) {
     return 'player_comparison';
   }
   if (types.has('player_hero')) return 'player_profile';

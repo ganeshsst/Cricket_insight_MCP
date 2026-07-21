@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { GenerativeRenderer } from '@/components/generative/GenerativeRenderer';
 import { AiInsightsCard } from '@/components/generative/patterns/MatchWidgets';
 import type {
+  BedrockUsageMeta,
   CricInsightsResponse,
   LayoutType,
   UIComponent,
@@ -23,6 +24,7 @@ type Turn = {
   id: string;
   query: string;
   page: PageState | null;
+  usage?: BedrockUsageMeta;
   error?: string;
 };
 
@@ -65,7 +67,7 @@ function AnswerCard({
         <p className="mt-1 break-words text-sm text-ink">{turn.query}</p>
       </div>
 
-      <div className="min-w-0 space-y-4 overflow-x-auto px-4 py-4 sm:px-5">
+      <div className="min-w-0 space-y-4 overflow-x-hidden px-4 py-4 sm:px-5">
         {turn.error ? (
           <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)]">
             {turn.error}
@@ -87,6 +89,15 @@ function AnswerCard({
                 onFollowUp={onFollowUp}
               />
             </div>
+            {turn.usage ? (
+              <p className="border-t border-sky-200/10 pt-3 text-[11px] text-ink-dim">
+                {turn.usage.inputTokens.toLocaleString()} input ·{' '}
+                {turn.usage.outputTokens.toLocaleString()} output ·{' '}
+                {turn.usage.totalTokens.toLocaleString()} total ·{' '}
+                {turn.usage.costFormatted} · {turn.usage.steps} step
+                {turn.usage.steps === 1 ? '' : 's'}
+              </p>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -162,11 +173,29 @@ export function ChatShell() {
       };
 
       setTurns((prev) =>
-        prev.map((t) => (t.id === turnId ? { ...t, page } : t)),
+        prev.map((t) =>
+          t.id === turnId ? { ...t, page, usage: data.meta } : t,
+        ),
       );
 
       const widgetTypes = (data.ui ?? []).map((w) => w.type).join(', ') || 'none';
-      const stub = `[Page rendered: layout=${data.layout ?? 'generic'}, title="${data.title || summary.headline}", widgets=[${widgetTypes}]. For a NEW player/match/stats ask, call tools and return full JSON with widgets again.]`;
+      const isClarify =
+        (data.ui ?? []).some((w) => w.type === 'follow_up_chips') &&
+        !(data.ui ?? []).some((w) =>
+          [
+            'metric_duel',
+            'comparison_table',
+            'stats_table',
+            'player_hero',
+            'duel_stage',
+            'scorecard_mini',
+            'manhattan_chart',
+            'podium',
+          ].includes(w.type),
+        );
+      const stub = isClarify
+        ? `[Page rendered: CLARIFY page layout=${data.layout ?? 'generic'}, title="${data.title || summary.headline}", widgets=[${widgetTypes}]. Waiting for the user to name players or pick a follow-up chip. When they reply with clear names, call tools and return a FULL stats/comparison JSON page — never invent stats.]`
+        : `[Page rendered: layout=${data.layout ?? 'generic'}, title="${data.title || summary.headline}", widgets=[${widgetTypes}]. For a NEW player/match/stats ask with clear names, call tools and return full JSON with widgets again. If the ask is vague (e.g. "other legends"), clarify with follow_up_chips instead of inventing players.]`;
       setHistory((prev) => [...prev, { role: 'assistant', content: stub }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Something went wrong';

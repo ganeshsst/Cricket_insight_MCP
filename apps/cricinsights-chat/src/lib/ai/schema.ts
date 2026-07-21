@@ -47,6 +47,21 @@ export const uiComponentSchema = z.discriminatedUnion('type', [
     metrics: z.array(z.string()).optional(),
   }),
   z.object({
+    type: z.literal('metric_duel'),
+    title: z.string().optional(),
+    labelA: z.string().optional(),
+    labelB: z.string().optional(),
+    rows: z.array(
+      z.object({
+        metric: z.string(),
+        valueA: z.union([z.string(), z.number()]),
+        valueB: z.union([z.string(), z.number()]),
+        winner: z.enum(['a', 'b', 'tie', 'none']).optional(),
+      }),
+    ),
+    insight: z.string().optional(),
+  }),
+  z.object({
     type: z.literal('bar_chart'),
     title: z.string().optional(),
     metric: z.string(),

@@ -6,6 +6,8 @@ import {
   ApiPlayerCompareQuery,
   ApiPlayerFormatLeagueQuery,
   ApiPlayerMatchesQuery,
+  ApiPlayerMatchupByNameQuery,
+  ApiPlayerMatchupQuery,
   ApiPlayerSearchQuery,
   ApiPlayerStatsQuery,
   ApiSportmonksIdParam,
@@ -23,6 +25,9 @@ import {
   PlayerDismissalByNameQueryDto,
   PlayerMatchLogDto,
   PlayerMatchesQueryDto,
+  PlayerMatchupByNameQueryDto,
+  PlayerMatchupDto,
+  PlayerMatchupQueryDto,
   PlayerProfileDto,
   PlayerSearchQueryDto,
   PlayerSearchResultDto,
@@ -60,6 +65,27 @@ export class PlayersController {
   @ApiOkResponse({ type: PlayerCompareDto })
   compareByName(@Query() query: PlayerCompareByNameQueryDto) {
     return this.playersService.compareByName(query);
+  }
+
+  @Get('matchup')
+  @ApiOperation({
+    summary: 'Batter vs bowler head-to-head (dismissals + ball stats when available)',
+  })
+  @ApiPlayerMatchupQuery()
+  @ApiOkResponse({ type: PlayerMatchupDto })
+  matchup(@Query() query: PlayerMatchupQueryDto) {
+    return this.playersService.getMatchup(query);
+  }
+
+  @Get('matchup-by-name')
+  @ApiOperation({
+    summary:
+      'Batter vs bowler H2H by name. Pass batter+bowler, or a+b to infer roles.',
+  })
+  @ApiPlayerMatchupByNameQuery()
+  @ApiOkResponse({ type: PlayerMatchupDto })
+  matchupByName(@Query() query: PlayerMatchupByNameQueryDto) {
+    return this.playersService.getMatchupByName(query);
   }
 
   @Get('by-name/stats')

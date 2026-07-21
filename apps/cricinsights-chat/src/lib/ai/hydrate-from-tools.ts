@@ -131,15 +131,120 @@ function widgetsFromPlayerStats(out: unknown): UIComponent[] {
   return widgets;
 }
 
+function numOrNull(v: unknown): number | null {
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+function metricWinner(
+  metric: string,
+  a: number | null,
+  b: number | null,
+): 'a' | 'b' | 'tie' | 'none' {
+  if (a == null || b == null) return 'none';
+  const lowerBetter = /economy|bowling avg|bowl avg|conceded/i.test(metric);
+  if (a === b) return 'tie';
+  if (lowerBetter) return a < b ? 'a' : 'b';
+  return a > b ? 'a' : 'b';
+}
+
+type ComparePlayerView = {
+  name: string;
+  imageUrl: string | null;
+  role: 'batter' | 'bowler' | 'allrounder';
+  batting: Record<string, number>;
+  bowling: Record<string, number>;
+};
+
+function inferCompareRole(
+  batting: Record<string, unknown>,
+  bowling: Record<string, unknown>,
+): 'batter' | 'bowler' | 'allrounder' {
+  const runs = numOrNull(batting.runs) ?? 0;
+  const batInns = numOrNull(batting.innings) ?? 0;
+  const wickets = numOrNull(bowling.wickets) ?? 0;
+  const bowlInns = numOrNull(bowling.innings) ?? 0;
+  const batScore = runs + batInns * 10;
+  const bowlScore = wickets * 40 + bowlInns * 8;
+  const hasBat = batScore > 0;
+  const hasBowl = wickets > 0 || bowlInns > 2;
+  if (hasBat && hasBowl && bowlScore >= batScore * 0.35 && batScore >= bowlScore * 0.35) {
+    return 'allrounder';
+  }
+  if (bowlScore > batScore * 1.2 && hasBowl) return 'bowler';
+  if (hasBat) return 'batter';
+  if (hasBowl) return 'bowler';
+  return 'batter';
+}
+
+function roleLabel(role: ComparePlayerView['role']): string {
+  if (role === 'bowler') return 'Bowler';
+  if (role === 'allrounder') return 'All-rounder';
+  return 'Batter';
+}
+
+function battingStatsMap(batting: Record<string, unknown>): Record<string, number> {
+  const stats: Record<string, number> = {};
+  const inns = numOrNull(batting.innings);
+  const runs = numOrNull(batting.runs);
+  const avg = numOrNull(batting.average);
+  const sr = numOrNull(batting.strikeRate);
+  const balls = numOrNull(batting.balls);
+  const fours = numOrNull(batting.fours);
+  const sixes = numOrNull(batting.sixes);
+  if (inns != null) stats.Innings = inns;
+  if (runs != null) stats.Runs = runs;
+  if (balls != null) stats['Balls Faced'] = balls;
+  if (avg != null) stats.Average = avg;
+  if (sr != null) stats['Strike Rate'] = sr;
+  if (fours != null) stats.Fours = fours;
+  if (sixes != null) stats.Sixes = sixes;
+  return stats;
+}
+
+function bowlingStatsMap(bowling: Record<string, unknown>): Record<string, number> {
+  const stats: Record<string, number> = {};
+  const overs = numOrNull(bowling.overs);
+  const wickets = numOrNull(bowling.wickets);
+  const avg = numOrNull(bowling.average);
+  const econ = numOrNull(bowling.economy);
+  const inns = numOrNull(bowling.innings);
+  if (inns != null) stats['Bowl Inns'] = inns;
+  if (overs != null) stats.Overs = overs;
+  if (wickets != null) stats.Wickets = wickets;
+  if (avg != null) stats['Bowling Avg'] = avg;
+  if (econ != null) stats.Economy = econ;
+  return stats;
+}
+
+function duelRowsFromStats(
+  a: Record<string, number>,
+  b: Record<string, number>,
+): { metric: string; valueA: string | number; valueB: string | number; winner: 'a' | 'b' | 'tie' | 'none' }[] {
+  const keys = Array.from(new Set([...Object.keys(a), ...Object.keys(b)]));
+  return keys.map((metric) => {
+    const va = a[metric] ?? null;
+    const vb = b[metric] ?? null;
+    return {
+      metric,
+      valueA: va != null ? va : '—',
+      valueB: vb != null ? vb : '—',
+      winner: metricWinner(metric, va, vb),
+    };
+  });
+}
+
 function widgetsFromCompare(out: unknown): UIComponent[] {
   const o = asRecord(out);
   const players = Array.isArray(o.players) ? o.players : [];
   if (players.length < 2) return [];
 
-  const entities = players.slice(0, 4).map((p) => {
+  const views: ComparePlayerView[] = players.slice(0, 4).map((p) => {
     const row = asRecord(p);
     const profile = asRecord(row.profile ?? row);
     const batting = asRecord(row.batting);
+    const bowling = asRecord(row.bowling);
     const name =
       (typeof profile.fullname === 'string' && profile.fullname) ||
       (typeof profile.name === 'string' && profile.name) ||
@@ -153,34 +258,123 @@ function widgetsFromCompare(out: unknown): UIComponent[] {
           : null,
       name,
     );
-    const stats: Record<string, string | number> = {};
-    if (batting.runs != null) stats.Runs = Number(batting.runs);
-    if (batting.average != null) stats.Average = Number(batting.average);
-    if (batting.strikeRate != null) stats['Strike Rate'] = Number(batting.strikeRate);
-    if (batting.innings != null) stats.Innings = Number(batting.innings);
-    return { name, imageUrl, stats };
+    const role = inferCompareRole(batting, bowling);
+    return {
+      name,
+      imageUrl,
+      role,
+      batting: battingStatsMap(batting),
+      bowling: bowlingStatsMap(bowling),
+    };
   });
 
-  if (entities.length === 2) {
-    return [
-      {
-        type: 'duel_stage',
-        playerA: {
-          name: entities[0].name,
-          imageUrl: entities[0].imageUrl,
-        },
-        playerB: {
-          name: entities[1].name,
-          imageUrl: entities[1].imageUrl,
-        },
+  const widgets: UIComponent[] = [];
+
+  if (views.length === 2) {
+    const [a, b] = views;
+    widgets.push({
+      type: 'duel_stage',
+      playerA: {
+        name: a.name,
+        imageUrl: a.imageUrl,
+        subtitle: roleLabel(a.role),
+        chips: Object.entries(
+          a.role === 'bowler' ? a.bowling : a.batting,
+        )
+          .slice(0, 2)
+          .map(([label, value]) => ({ label, value })),
       },
-      {
-        type: 'comparison_table',
-        title: 'Head-to-head',
-        entities,
+      playerB: {
+        name: b.name,
+        imageUrl: b.imageUrl,
+        subtitle: roleLabel(b.role),
+        chips: Object.entries(
+          b.role === 'bowler' ? b.bowling : b.batting,
+        )
+          .slice(0, 2)
+          .map(([label, value]) => ({ label, value })),
       },
-    ];
+    });
+
+    const sameBat =
+      (a.role === 'batter' || a.role === 'allrounder') &&
+      (b.role === 'batter' || b.role === 'allrounder') &&
+      a.role === b.role &&
+      a.role !== 'allrounder';
+    const sameBowl = a.role === 'bowler' && b.role === 'bowler';
+    const mixed =
+      (a.role === 'batter' && b.role === 'bowler') ||
+      (a.role === 'bowler' && b.role === 'batter');
+    const bothAllround = a.role === 'allrounder' || b.role === 'allrounder';
+
+    const showBat =
+      sameBat || mixed || bothAllround || a.role === 'batter' || b.role === 'batter';
+    const showBowl =
+      sameBowl ||
+      mixed ||
+      bothAllround ||
+      a.role === 'bowler' ||
+      b.role === 'bowler' ||
+      Object.keys(a.bowling).length > 0 ||
+      Object.keys(b.bowling).length > 0;
+
+    if (showBat && Object.keys(a.batting).length + Object.keys(b.batting).length > 0) {
+      widgets.push({
+        type: 'metric_duel',
+        title: mixed ? 'Batting (by role)' : 'Batting',
+        labelA: a.name,
+        labelB: b.name,
+        rows: duelRowsFromStats(a.batting, b.batting),
+        insight: mixed
+          ? 'Mixed roles — batting numbers are not a like-for-like contest.'
+          : undefined,
+      });
+    }
+
+    if (
+      showBowl &&
+      (Object.keys(a.bowling).length > 0 || Object.keys(b.bowling).length > 0)
+    ) {
+      // Skip empty bowling duel when both are pure batters with no wickets
+      const anyWickets =
+        (a.bowling.Wickets ?? 0) > 0 || (b.bowling.Wickets ?? 0) > 0;
+      if (anyWickets || sameBowl || mixed) {
+        widgets.push({
+          type: 'metric_duel',
+          title: mixed ? 'Bowling (by role)' : 'Bowling',
+          labelA: a.name,
+          labelB: b.name,
+          rows: duelRowsFromStats(a.bowling, b.bowling),
+          insight: mixed
+            ? 'Mixed roles — bowling numbers favour the bowler; do not crown a single winner on batting average.'
+            : undefined,
+        });
+      }
+    }
+
+    widgets.push({
+      type: 'follow_up_chips',
+      prompts: mixed
+        ? [
+            `Show ${a.name} vs ${b.name} matchup H2H`,
+            'Compare batting only',
+            'Compare bowling only',
+          ]
+        : ['Career stats instead of IPL', 'Add a third player'],
+    });
+
+    return widgets;
   }
+
+  const entities = views.map((v) => ({
+    name: v.name,
+    imageUrl: v.imageUrl,
+    subtitle: roleLabel(v.role),
+    stats: {
+      ...(v.role === 'bowler' ? v.bowling : v.batting),
+      ...(v.role === 'allrounder' ? { ...v.batting, ...v.bowling } : {}),
+    },
+  }));
 
   return [
     {
@@ -189,6 +383,160 @@ function widgetsFromCompare(out: unknown): UIComponent[] {
       entities,
     },
   ];
+}
+
+function widgetsFromMatchup(out: unknown): UIComponent[] {
+  const o = asRecord(out);
+  const batter = asRecord(o.batter);
+  const bowler = asRecord(o.bowler);
+  const ballStats = asRecord(o.ballStats);
+  const batterName =
+    (typeof batter.name === 'string' && batter.name) || 'Batter';
+  const bowlerName =
+    (typeof bowler.name === 'string' && bowler.name) || 'Bowler';
+  const batterImg = resolvePlayerPhoto(
+    typeof batter.imagePath === 'string'
+      ? batter.imagePath
+      : typeof batter.imageUrl === 'string'
+        ? batter.imageUrl
+        : null,
+    batterName,
+  );
+  const bowlerImg = resolvePlayerPhoto(
+    typeof bowler.imagePath === 'string'
+      ? bowler.imagePath
+      : typeof bowler.imageUrl === 'string'
+        ? bowler.imageUrl
+        : null,
+    bowlerName,
+  );
+
+  const dismissals = numOrNull(o.dismissals) ?? 0;
+  const ballsFaced = numOrNull(ballStats.ballsFaced) ?? 0;
+  const runsScored = numOrNull(ballStats.runsScored) ?? 0;
+  const ballWickets = numOrNull(ballStats.wickets) ?? 0;
+  const sr = numOrNull(ballStats.strikeRate);
+  const ballAvailable = Boolean(ballStats.available);
+  const note = typeof o.note === 'string' ? o.note : undefined;
+  const roleAssignment =
+    o.roleAssignment === 'inferred' ? 'Roles inferred from stats' : undefined;
+
+  const widgets: UIComponent[] = [
+    {
+      type: 'duel_stage',
+      playerA: {
+        name: batterName,
+        imageUrl: batterImg,
+        subtitle: 'Batter',
+        chips: [{ label: 'Dismissed', value: dismissals }],
+      },
+      playerB: {
+        name: bowlerName,
+        imageUrl: bowlerImg,
+        subtitle: 'Bowler',
+        chips: [{ label: 'Wickets H2H', value: dismissals }],
+      },
+    },
+    {
+      type: 'metric_duel',
+      title: 'Head-to-head matchup',
+      labelA: batterName,
+      labelB: bowlerName,
+      rows: [
+        {
+          metric: 'Dismissals',
+          valueA: dismissals,
+          valueB: dismissals,
+          winner: dismissals > 0 ? 'b' : 'none',
+        },
+        ...(ballAvailable
+          ? [
+              {
+                metric: 'Balls faced',
+                valueA: ballsFaced,
+                valueB: '—',
+                winner: 'none' as const,
+              },
+              {
+                metric: 'Runs scored',
+                valueA: runsScored,
+                valueB: '—',
+                winner: 'none' as const,
+              },
+              {
+                metric: 'Strike rate',
+                valueA: sr != null ? sr : '—',
+                valueB: '—',
+                winner: 'none' as const,
+              },
+              {
+                metric: 'Ball wickets',
+                valueA: '—',
+                valueB: ballWickets,
+                winner: ballWickets > 0 ? ('b' as const) : ('none' as const),
+              },
+            ]
+          : []),
+      ],
+      insight: [roleAssignment, note].filter(Boolean).join(' '),
+    },
+  ];
+
+  const byType = Array.isArray(o.byDismissalType) ? o.byDismissalType : [];
+  if (byType.length) {
+    widgets.push({
+      type: 'stats_table',
+      headers: ['Dismissal type', 'Count', '%'],
+      rows: byType.slice(0, 8).map((row) => {
+        const r = asRecord(row);
+        return [
+          String(r.label ?? '—'),
+          numOrNull(r.count) ?? 0,
+          numOrNull(r.percentage) != null
+            ? `${Math.round(Number(r.percentage) * 10) / 10}%`
+            : '—',
+        ];
+      }),
+    });
+  }
+
+  const recent = Array.isArray(o.recentDismissals) ? o.recentDismissals : [];
+  if (recent.length) {
+    widgets.push({
+      type: 'stats_table',
+      headers: ['Match', 'Date', 'How out', 'Score'],
+      rows: recent.slice(0, 8).map((row) => {
+        const r = asRecord(row);
+        const runs = numOrNull(r.batterRuns);
+        const balls = numOrNull(r.batterBalls);
+        const score =
+          runs != null
+            ? balls != null
+              ? `${runs} (${balls})`
+              : String(runs)
+            : '—';
+        const date =
+          typeof r.date === 'string' ? r.date.slice(0, 10) : '—';
+        return [
+          String(r.matchTitle ?? r.fixtureId ?? '—'),
+          date,
+          String(r.outcome ?? '—'),
+          score,
+        ];
+      }),
+    });
+  }
+
+  widgets.push({
+    type: 'follow_up_chips',
+    prompts: [
+      `Compare ${batterName} and ${bowlerName} by role`,
+      `${batterName} batting stats`,
+      `${bowlerName} bowling stats`,
+    ],
+  });
+
+  return widgets;
 }
 
 function widgetsFromScorecard(out: unknown): UIComponent[] {
@@ -331,6 +679,15 @@ export function collectToolHits(
  * If the model returned stats text but empty/weak widgets, build UI from the last
  * relevant MCP tool result. Chat-app only — does not change MCP payloads.
  */
+function pageHasH2HWidget(ui: UIComponent[] | undefined): boolean {
+  return (ui ?? []).some(
+    (w) =>
+      w.type === 'metric_duel' &&
+      typeof w.title === 'string' &&
+      /head-to-head|h2h|matchup/i.test(w.title),
+  );
+}
+
 export function fillUiFromToolResults(
   page: CricInsightsResponse,
   toolResults: Array<{ toolName?: string; output?: unknown }> | undefined,
@@ -339,11 +696,21 @@ export function fillUiFromToolResults(
   const scorecardHit = [...hits]
     .reverse()
     .find((h) => h.toolName === 'get_match_scorecard');
+  const matchupHit = hits.find((h) => h.toolName === 'get_batter_bowler_matchup');
+  const compareHit = hits.find((h) => h.toolName === 'compare_players_by_name');
+  const hasH2HInPage = pageHasH2HWidget(page.ui);
 
   const shouldReplaceScorecard =
     Boolean(scorecardHit) && isWeakScorecardUi(page.ui ?? []);
 
+  // #region agent log
+  fetch('http://127.0.0.1:7887/ingest/7edc790d-29f3-447f-b728-46811f18af44',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d8849f'},body:JSON.stringify({sessionId:'d8849f',location:'hydrate-from-tools.ts:fillUiFromToolResults:entry',message:'hydrate entry',data:{toolNames:hits.map(h=>h.toolName),modelUiCount:page.ui?.length??0,modelWidgetTypes:(page.ui??[]).map(w=>w.type),hasMatchupHit:Boolean(matchupHit),hasCompareHit:Boolean(compareHit),hasH2HInPage,shouldReplaceScorecard},timestamp:Date.now(),hypothesisId:'A,B'})}).catch(()=>{});
+  // #endregion
+
   if (page.ui?.length && !shouldReplaceScorecard) {
+    // #region agent log
+    fetch('http://127.0.0.1:7887/ingest/7edc790d-29f3-447f-b728-46811f18af44',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d8849f'},body:JSON.stringify({sessionId:'d8849f',location:'hydrate-from-tools.ts:fillUiFromToolResults:earlyReturn',message:'skipped hydrate — model already returned widgets',data:{modelUiCount:page.ui?.length??0,hasMatchupHit:Boolean(matchupHit),hasH2HInPage,metricDuelTitles:(page.ui??[]).filter(w=>w.type==='metric_duel').map(w=>w.type==='metric_duel'?w.title:null)},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     console.log('[hydrate-from-tools] skipped — model already returned widgets', {
       count: page.ui.length,
       types: page.ui.map((w) => w.type),
@@ -405,12 +772,51 @@ export function fillUiFromToolResults(
         break;
       }
     }
+    // Prefer true H2H matchup over side-by-side compare when both ran.
+    if (toolName === 'get_batter_bowler_matchup') {
+      widgets = widgetsFromMatchup(output);
+      // #region agent log
+      const mOut = asRecord(output);
+      fetch('http://127.0.0.1:7887/ingest/7edc790d-29f3-447f-b728-46811f18af44',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d8849f'},body:JSON.stringify({sessionId:'d8849f',location:'hydrate-from-tools.ts:fillUiFromToolResults:matchup',message:'processing matchup tool',data:{widgetCount:widgets.length,widgetTypes:widgets.map(w=>w.type),dismissals:numOrNull(mOut.dismissals),ballAvailable:Boolean(asRecord(mOut.ballStats).available),hasError:typeof mOut.error==='string'},timestamp:Date.now(),hypothesisId:'C,E'})}).catch(()=>{});
+      // #endregion
+      if (widgets.length) {
+        layout = 'player_comparison';
+        const batter = asRecord(asRecord(output).batter);
+        const bowler = asRecord(asRecord(output).bowler);
+        const bn =
+          typeof batter.name === 'string' ? batter.name : 'Batter';
+        const bl =
+          typeof bowler.name === 'string' ? bowler.name : 'Bowler';
+        if (!title || title === 'CricInsights') title = `${bn} vs ${bl}`;
+        if (!headline || headline === 'Insight') {
+          headline = 'Batter vs bowler matchup';
+        }
+        const compareHit = hits.find((h) => h.toolName === 'compare_players_by_name');
+        if (compareHit) {
+          const roleWidgets = widgetsFromCompare(compareHit.output).filter(
+            (w) => w.type === 'metric_duel',
+          );
+          // Insert role duels after H2H duel stage / matchup block
+          const insertAt = Math.min(2, widgets.length);
+          widgets = [
+            ...widgets.slice(0, insertAt),
+            ...roleWidgets,
+            ...widgets.slice(insertAt),
+          ];
+        }
+        break;
+      }
+    }
     if (toolName === 'compare_players_by_name') {
+      // Skip compare-only hydrate if a matchup hit exists later/earlier — handled above when matchup is found.
+      if (hits.some((h) => h.toolName === 'get_batter_bowler_matchup')) {
+        continue;
+      }
       widgets = widgetsFromCompare(output);
       if (widgets.length) {
         layout = 'player_comparison';
         if (!title || title === 'CricInsights') title = 'Player Comparison';
-        if (!headline || headline === 'Insight') headline = 'Head-to-head';
+        if (!headline || headline === 'Insight') headline = 'Role comparison';
         break;
       }
     }

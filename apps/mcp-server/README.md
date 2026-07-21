@@ -42,6 +42,7 @@ Each tool maps 1:1 to a Cricket API endpoint. See [cricket-api README](../cricke
 | `player_bowling_stats` | `GET /players/:sportmonksId/bowling-stats` |
 | `get_player_career` | `GET /players/:sportmonksId/career` |
 | `compare_players_by_name` | `GET /players/compare-by-name` |
+| `get_batter_bowler_matchup` | `GET /players/matchup-by-name` |
 | `get_player_stats_by_name` | `GET /players/by-name/stats` |
 | `player_dismissal_analysis` | `GET /players/by-name/dismissals` |
 

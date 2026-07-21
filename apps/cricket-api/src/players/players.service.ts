@@ -16,6 +16,10 @@ import type {
   PlayerDismissalByNameQueryDto,
   PlayerMatchLogDto,
   PlayerMatchesQueryDto,
+  PlayerMatchupByNameQueryDto,
+  PlayerMatchupDismissalRowDto,
+  PlayerMatchupDto,
+  PlayerMatchupQueryDto,
   PlayerProfileDto,
   PlayerSearchResultDto,
   PlayerStatsBundleDto,
@@ -147,6 +151,23 @@ export class PlayersService {
   ): Promise<PlayerBattingStatsDto> {
     await this.getById(sportmonksId);
 
+    if (this.shouldPreferScorecardStats(filters)) {
+      const fromScorecards = await this.getBattingStatsFromScorecards(
+        sportmonksId,
+        filters,
+      );
+      if (fromScorecards.innings > 0 || fromScorecards.runs > 0) {
+        return fromScorecards;
+      }
+    }
+
+    return this.getBattingStatsFromCareer(sportmonksId, filters);
+  }
+
+  private async getBattingStatsFromCareer(
+    sportmonksId: string,
+    filters: PlayerStatsQueryDto,
+  ): Promise<PlayerBattingStatsDto> {
     const { params, conditions } = this.careerFilterClauses(sportmonksId, filters);
 
     const { rows } = await this.db.query<{
@@ -201,12 +222,96 @@ export class PlayersService {
     };
   }
 
+  private async getBattingStatsFromScorecards(
+    sportmonksId: string,
+    filters: PlayerStatsQueryDto,
+  ): Promise<PlayerBattingStatsDto> {
+    const { params, conditions } = this.fixtureScopeClauses(sportmonksId, filters, 'fb');
+
+    const { rows } = await this.db.query<{
+      innings: string;
+      not_outs: string;
+      runs: string;
+      balls: string;
+      fours: string;
+      sixes: string;
+      strike_rate: string | null;
+      average: string | null;
+    }>(
+      `SELECT COUNT(*)::text AS innings,
+              COUNT(*) FILTER (
+                WHERE fb.wicket_outcome_id IS NULL
+                   OR LOWER(COALESCE(so.name, '')) IN ('not out', 'retired hurt', 'absent')
+              )::text AS not_outs,
+              COALESCE(SUM(fb.runs_scored), 0)::text AS runs,
+              COALESCE(SUM(fb.balls_faced), 0)::text AS balls,
+              COALESCE(SUM(fb.fours), 0)::text AS fours,
+              COALESCE(SUM(fb.sixes), 0)::text AS sixes,
+              ROUND(
+                COALESCE(SUM(fb.runs_scored), 0)::numeric
+                / NULLIF(SUM(fb.balls_faced), 0) * 100,
+                2
+              )::text AS strike_rate,
+              ROUND(
+                COALESCE(SUM(fb.runs_scored), 0)::numeric
+                / NULLIF(
+                  COUNT(*) - COUNT(*) FILTER (
+                    WHERE fb.wicket_outcome_id IS NULL
+                       OR LOWER(COALESCE(so.name, '')) IN ('not out', 'retired hurt', 'absent')
+                  ),
+                  0
+                ),
+                2
+              )::text AS average
+       FROM matches.fixture_batting fb
+       JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
+       LEFT JOIN master.score_outcomes so ON so.sportmonks_id = fb.wicket_outcome_id
+       WHERE ${conditions.join(' AND ')}`,
+      params,
+    );
+
+    const row = rows[0];
+    const scope = await this.leagues.resolveScope(filters);
+    const innings = Number(row?.innings ?? 0);
+    const note = this.scorecardStatsNote(filters, innings, 'batting');
+
+    return {
+      playerId: sportmonksId,
+      scope,
+      innings,
+      runs: Number(row?.runs ?? 0),
+      balls: Number(row?.balls ?? 0),
+      fours: Number(row?.fours ?? 0),
+      sixes: Number(row?.sixes ?? 0),
+      strikeRate: row?.strike_rate ? Number(row.strike_rate) : null,
+      average: row?.average ? Number(row.average) : null,
+      note,
+    };
+  }
+
   async getBowlingStats(
     sportmonksId: string,
     filters: PlayerStatsQueryDto,
   ): Promise<PlayerBowlingStatsDto> {
     await this.getById(sportmonksId);
 
+    if (this.shouldPreferScorecardStats(filters)) {
+      const fromScorecards = await this.getBowlingStatsFromScorecards(
+        sportmonksId,
+        filters,
+      );
+      if (fromScorecards.innings > 0 || fromScorecards.wickets > 0) {
+        return fromScorecards;
+      }
+    }
+
+    return this.getBowlingStatsFromCareer(sportmonksId, filters);
+  }
+
+  private async getBowlingStatsFromCareer(
+    sportmonksId: string,
+    filters: PlayerStatsQueryDto,
+  ): Promise<PlayerBowlingStatsDto> {
     const { params, conditions } = this.careerFilterClauses(sportmonksId, filters);
 
     const { rows } = await this.db.query<{
@@ -246,6 +351,65 @@ export class PlayersService {
     const scope = await this.leagues.resolveScope(filters);
     const innings = Number(row?.innings ?? 0);
     const note = this.careerStatsNote(filters, innings);
+
+    return {
+      playerId: sportmonksId,
+      scope,
+      innings,
+      overs: Number(row?.overs ?? 0),
+      maidens: Number(row?.maidens ?? 0),
+      runsConceded: Number(row?.runs_conceded ?? 0),
+      wickets: Number(row?.wickets ?? 0),
+      economy: row?.economy ? Number(row.economy) : null,
+      average: row?.average ? Number(row.average) : null,
+      note,
+    };
+  }
+
+  private async getBowlingStatsFromScorecards(
+    sportmonksId: string,
+    filters: PlayerStatsQueryDto,
+  ): Promise<PlayerBowlingStatsDto> {
+    const { params, conditions } = this.fixtureScopeClauses(
+      sportmonksId,
+      filters,
+      'bowl',
+    );
+
+    const { rows } = await this.db.query<{
+      innings: string;
+      overs: string;
+      maidens: string;
+      runs_conceded: string;
+      wickets: string;
+      economy: string | null;
+      average: string | null;
+    }>(
+      `SELECT COUNT(DISTINCT bowl.fixture_id)::text AS innings,
+              COALESCE(SUM(bowl.overs), 0)::text AS overs,
+              COALESCE(SUM(bowl.maidens), 0)::text AS maidens,
+              COALESCE(SUM(bowl.runs_conceded), 0)::text AS runs_conceded,
+              COALESCE(SUM(bowl.wickets), 0)::text AS wickets,
+              ROUND(
+                COALESCE(SUM(bowl.runs_conceded), 0)::numeric
+                / NULLIF(SUM(bowl.overs), 0),
+                2
+              )::text AS economy,
+              ROUND(
+                COALESCE(SUM(bowl.runs_conceded), 0)::numeric
+                / NULLIF(SUM(bowl.wickets), 0),
+                2
+              )::text AS average
+       FROM matches.fixture_bowling bowl
+       JOIN gold.fact_fixture ff ON ff.fixture_id = bowl.fixture_id
+       WHERE ${conditions.join(' AND ')}`,
+      params,
+    );
+
+    const row = rows[0];
+    const scope = await this.leagues.resolveScope(filters);
+    const innings = Number(row?.innings ?? 0);
+    const note = this.scorecardStatsNote(filters, innings, 'bowling');
 
     return {
       playerId: sportmonksId,
@@ -648,6 +812,14 @@ export class PlayersService {
       .sort((a, b) => b.count - a.count);
   }
 
+  /** Season-scoped stats use ingested scorecards; league-wide career uses player_career_stats. */
+  private shouldPreferScorecardStats(filters: {
+    leagueId?: number;
+    seasonId?: number;
+  }): boolean {
+    return filters.seasonId != null;
+  }
+
   /** Filters for SportMonks per-season career aggregates (not incomplete scorecards). */
   private careerFilterClauses(
     sportmonksId: string,
@@ -674,6 +846,49 @@ export class PlayersService {
     }
 
     return { params, conditions };
+  }
+
+  /** Filters for scorecard aggregates joined to fact_fixture. */
+  private fixtureScopeClauses(
+    sportmonksId: string,
+    filters: { format?: string; leagueId?: number; seasonId?: number },
+    playerAlias: 'fb' | 'bowl',
+  ): { params: unknown[]; conditions: string[] } {
+    const params: unknown[] = [sportmonksId];
+    const conditions = [`${playerAlias}.player_id = $1::bigint`];
+
+    if (filters.format) {
+      params.push(filters.format);
+      conditions.push(`ff.match_format = $${params.length}`);
+    }
+    if (filters.leagueId) {
+      params.push(filters.leagueId);
+      conditions.push(`ff.league_id = $${params.length}::bigint`);
+    }
+    if (filters.seasonId) {
+      params.push(filters.seasonId);
+      conditions.push(`ff.season_id = $${params.length}::bigint`);
+    }
+
+    return { params, conditions };
+  }
+
+  private scorecardStatsNote(
+    filters: { format?: string; leagueId?: number; seasonId?: number },
+    innings: number,
+    kind: 'batting' | 'bowling',
+  ): string | undefined {
+    const base =
+      kind === 'batting'
+        ? 'Batting stats aggregated from ingested scorecards for this scope.'
+        : 'Bowling stats aggregated from ingested scorecards for this scope.';
+    if (innings === 0) {
+      return `No ${kind} scorecard rows found for this filter scope in the database.`;
+    }
+    if (filters.seasonId) {
+      return `${base} Season totals match fixture scorecards, not career_stats table.`;
+    }
+    return base;
   }
 
   private careerStatsNote(
@@ -734,6 +949,268 @@ export class PlayersService {
       leagueId: query.leagueId,
       seasonId: query.seasonId,
     });
+  }
+
+  async getMatchup(query: PlayerMatchupQueryDto): Promise<PlayerMatchupDto> {
+    if (!query.batterId?.trim() || !query.bowlerId?.trim()) {
+      throw new BadRequestException('batterId and bowlerId are required');
+    }
+    if (query.batterId === query.bowlerId) {
+      throw new BadRequestException('batterId and bowlerId must be different players');
+    }
+
+    const filters: PlayerStatsQueryDto = {
+      format: query.format,
+      leagueId: query.leagueId,
+      seasonId: query.seasonId,
+    };
+
+    const [batterProfile, bowlerProfile] = await Promise.all([
+      this.getById(query.batterId),
+      this.getById(query.bowlerId),
+    ]);
+
+    const params: unknown[] = [query.batterId, query.bowlerId];
+    const conditions = [
+      'fb.player_id = $1::bigint',
+      'fb.bowling_player_id = $2::bigint',
+      'fb.wicket_outcome_id IS NOT NULL',
+    ];
+
+    if (filters.format) {
+      params.push(filters.format);
+      conditions.push(`ff.match_format = $${params.length}`);
+    }
+    if (filters.leagueId) {
+      params.push(filters.leagueId);
+      conditions.push(`ff.league_id = $${params.length}::bigint`);
+    }
+    if (filters.seasonId) {
+      params.push(filters.seasonId);
+      conditions.push(`ff.season_id = $${params.length}::bigint`);
+    }
+
+    const { rows: dismissalRows } = await this.db.query<{
+      fixture_id: string;
+      starting_at: string | null;
+      local_team: string | null;
+      visitor_team: string | null;
+      outcome: string | null;
+      runs_scored: number | null;
+      balls_faced: number | null;
+    }>(
+      `SELECT fb.fixture_id::text,
+              ff.starting_at::text,
+              lt.name AS local_team,
+              vt.name AS visitor_team,
+              so.name AS outcome,
+              fb.runs_scored,
+              fb.balls_faced
+       FROM matches.fixture_batting fb
+       JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
+       JOIN master.score_outcomes so ON so.sportmonks_id = fb.wicket_outcome_id
+       LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
+       LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
+       WHERE ${conditions.join(' AND ')}
+       ORDER BY ff.starting_at DESC NULLS LAST
+       LIMIT 25`,
+      params,
+    );
+
+    const nonDismissal = new Set(['not out', 'retired hurt', 'absent']);
+    const typeCounts = new Map<string, number>();
+    const recentDismissals: PlayerMatchupDismissalRowDto[] = [];
+
+    for (const row of dismissalRows) {
+      const outcome = (row.outcome ?? 'Unknown').trim();
+      const normalized = outcome.toLowerCase();
+      if (nonDismissal.has(normalized)) continue;
+
+      typeCounts.set(outcome, (typeCounts.get(outcome) ?? 0) + 1);
+      recentDismissals.push({
+        fixtureId: row.fixture_id,
+        date: row.starting_at,
+        matchTitle:
+          row.local_team && row.visitor_team
+            ? `${row.local_team} vs ${row.visitor_team}`
+            : null,
+        outcome,
+        batterRuns: row.runs_scored,
+        batterBalls: row.balls_faced,
+      });
+    }
+
+    const dismissals = recentDismissals.length;
+    const byDismissalType = this.toBreakdown(typeCounts, dismissals);
+
+    const ballParams: unknown[] = [query.batterId, query.bowlerId];
+    const ballConditions = [
+      'fb.batsman_striker_id = $1::bigint',
+      'fb.bowler_id = $2::bigint',
+    ];
+    if (filters.format) {
+      ballParams.push(filters.format);
+      ballConditions.push(`ff.match_format = $${ballParams.length}`);
+    }
+    if (filters.leagueId) {
+      ballParams.push(filters.leagueId);
+      ballConditions.push(`ff.league_id = $${ballParams.length}::bigint`);
+    }
+    if (filters.seasonId) {
+      ballParams.push(filters.seasonId);
+      ballConditions.push(`ff.season_id = $${ballParams.length}::bigint`);
+    }
+
+    const { rows: ballAgg } = await this.db.query<{
+      balls: string;
+      runs: string;
+      wickets: string;
+      fours: string;
+      sixes: string;
+    }>(
+      `SELECT COUNT(*)::text AS balls,
+              COALESCE(SUM(gf.runs_on_ball), 0)::text AS runs,
+              COALESCE(SUM(CASE WHEN COALESCE(gf.is_wicket, false) THEN 1 ELSE 0 END), 0)::text AS wickets,
+              COALESCE(SUM(CASE WHEN COALESCE(gf.is_four, false) THEN 1 ELSE 0 END), 0)::text AS fours,
+              COALESCE(SUM(CASE WHEN COALESCE(gf.is_six, false) THEN 1 ELSE 0 END), 0)::text AS sixes
+       FROM matches.fixture_balls fb
+       JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
+       LEFT JOIN gold.fact_ball gf ON gf.ball_id = fb.sportmonks_id
+       WHERE ${ballConditions.join(' AND ')}`,
+      ballParams,
+    );
+
+    const ballsFaced = Number(ballAgg[0]?.balls ?? 0);
+    const runsScored = Number(ballAgg[0]?.runs ?? 0);
+    const ballWickets = Number(ballAgg[0]?.wickets ?? 0);
+    const fours = Number(ballAgg[0]?.fours ?? 0);
+    const sixes = Number(ballAgg[0]?.sixes ?? 0);
+    const ballAvailable = ballsFaced > 0;
+    const strikeRate =
+      ballAvailable && ballsFaced > 0
+        ? Math.round((runsScored / ballsFaced) * 1000) / 10
+        : null;
+
+    const scope = await this.leagues.resolveScope(filters);
+
+    let note: string;
+    if (dismissals === 0 && !ballAvailable) {
+      note =
+        'No scorecard dismissals or ball-by-ball rows found for this batter–bowler pair in the loaded scope. Coverage is partial.';
+    } else if (!ballAvailable) {
+      note =
+        'H2H dismissals from ingested scorecards only. Ball-by-ball face-offs are not available for this pair yet — treat as indicative.';
+    } else {
+      note =
+        'H2H from scorecard dismissals plus ball-by-ball rows where available. Coverage may still be incomplete vs full career.';
+    }
+
+    return {
+      scope,
+      batter: {
+        playerId: batterProfile.sportmonksId,
+        name: batterProfile.fullname,
+        imagePath: batterProfile.imagePath,
+        role: 'batter',
+      },
+      bowler: {
+        playerId: bowlerProfile.sportmonksId,
+        name: bowlerProfile.fullname,
+        imagePath: bowlerProfile.imagePath,
+        role: 'bowler',
+      },
+      dismissals,
+      byDismissalType,
+      recentDismissals,
+      ballStats: {
+        ballsFaced,
+        runsScored,
+        wickets: ballWickets,
+        fours,
+        sixes,
+        strikeRate,
+        available: ballAvailable,
+      },
+      roleAssignment: 'explicit',
+      note,
+    };
+  }
+
+  async getMatchupByName(
+    query: PlayerMatchupByNameQueryDto,
+  ): Promise<PlayerMatchupDto> {
+    const filters: PlayerStatsQueryDto = {
+      format: query.format,
+      leagueId: query.leagueId,
+      seasonId: query.seasonId,
+    };
+
+    let batterName = query.batter?.trim();
+    let bowlerName = query.bowler?.trim();
+    let roleAssignment: 'explicit' | 'inferred' = 'explicit';
+
+    if (!batterName || !bowlerName) {
+      const nameA = query.a?.trim();
+      const nameB = query.b?.trim();
+      if (!nameA || !nameB) {
+        throw new BadRequestException(
+          'Provide batter+bowler names, or a+b for role inference',
+        );
+      }
+
+      const [playerA, playerB] = await Promise.all([
+        this.resolveByName(nameA, query.leagueId),
+        this.resolveByName(nameB, query.leagueId),
+      ]);
+
+      const [batA, bowlA, batB, bowlB] = await Promise.all([
+        this.getBattingStats(playerA.sportmonksId, filters),
+        this.getBowlingStats(playerA.sportmonksId, filters),
+        this.getBattingStats(playerB.sportmonksId, filters),
+        this.getBowlingStats(playerB.sportmonksId, filters),
+      ]);
+
+      const scoreA = this.roleSignals(playerA, batA, bowlA);
+      const scoreB = this.roleSignals(playerB, batB, bowlB);
+
+      // Prefer the stronger bowling signal as bowler when asymmetric.
+      if (scoreA.bowl - scoreA.bat >= scoreB.bowl - scoreB.bat) {
+        bowlerName = playerA.fullname;
+        batterName = playerB.fullname;
+      } else {
+        bowlerName = playerB.fullname;
+        batterName = playerA.fullname;
+      }
+      roleAssignment = 'inferred';
+    }
+
+    const [batter, bowler] = await Promise.all([
+      this.resolveByName(batterName, query.leagueId),
+      this.resolveByName(bowlerName, query.leagueId),
+    ]);
+
+    const result = await this.getMatchup({
+      batterId: batter.sportmonksId,
+      bowlerId: bowler.sportmonksId,
+      format: query.format,
+      leagueId: query.leagueId,
+      seasonId: query.seasonId,
+    });
+
+    return { ...result, roleAssignment };
+  }
+
+  private roleSignals(
+    profile: PlayerSearchResultDto,
+    batting: PlayerBattingStatsDto,
+    bowling: PlayerBowlingStatsDto,
+  ): { bat: number; bowl: number } {
+    const styleBowl = (profile.bowlingstyle ?? '').trim() ? 20 : 0;
+    const styleBat = (profile.battingstyle ?? '').trim() ? 10 : 0;
+    return {
+      bat: (batting.runs ?? 0) + (batting.innings ?? 0) * 5 + styleBat,
+      bowl: (bowling.wickets ?? 0) * 25 + (bowling.innings ?? 0) * 5 + styleBowl,
+    };
   }
 
   private async resolveByName(

@@ -3,6 +3,7 @@
 import type { UIComponent } from '@/types/generative-ui';
 import { PlayerHero } from './patterns/PlayerHero';
 import { DuelStage } from './patterns/DuelStage';
+import { MetricDuelCard } from './patterns/MetricDuel';
 import { BarChartCard, LineChartCard, RadarCard } from './patterns/Charts';
 import { StatsTable } from './patterns/StatsTable';
 import { Podium } from './patterns/Podium';
@@ -49,6 +50,17 @@ export function GenerativeRenderer({
                 title={item.title}
                 entities={item.entities}
                 metrics={item.metrics}
+              />
+            );
+          case 'metric_duel':
+            return (
+              <MetricDuelCard
+                key={key}
+                title={item.title}
+                labelA={item.labelA}
+                labelB={item.labelB}
+                rows={item.rows}
+                insight={item.insight}
               />
             );
           case 'bar_chart':

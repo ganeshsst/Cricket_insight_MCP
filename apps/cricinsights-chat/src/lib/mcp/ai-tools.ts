@@ -9,7 +9,10 @@ export interface BuildAiToolsOptions {
 
 const IPL_LEAGUE_ID = 1;
 const IPL_FORMAT = 'T20';
-const SCOPED_STATS_TOOLS = new Set(['compare_players_by_name']);
+const SCOPED_STATS_TOOLS = new Set([
+  'compare_players_by_name',
+  'get_batter_bowler_matchup',
+]);
 
 type CompareLike = {
   players?: Array<{
@@ -46,12 +49,16 @@ function annotateAppliedScope(
   const leagueId = args.leagueId ?? null;
   const format = args.format ?? null;
   const seasonId = args.seasonId ?? null;
+  const scope = asRecord(record.scope);
 
   let label = 'unscoped / mixed formats';
   if (leagueId === IPL_LEAGUE_ID || leagueId === '1') {
+    const seasonLabel =
+      (typeof scope.seasonName === 'string' && scope.seasonName) ||
+      (seasonId != null ? `seasonId=${String(seasonId)}` : null);
     label =
-      seasonId != null
-        ? `IPL T20 (seasonId=${String(seasonId)})`
+      seasonLabel != null
+        ? `IPL T20 (${seasonLabel})`
         : 'IPL T20 (all IPL seasons loaded)';
   } else if (leagueId != null) {
     label = `leagueId=${String(leagueId)}${format ? `, format=${String(format)}` : ''}`;
@@ -65,8 +72,10 @@ function annotateAppliedScope(
       leagueId,
       format,
       seasonId,
+      seasonName: scope.seasonName ?? null,
+      leagueName: scope.leagueName ?? null,
       label,
-      note: 'State this scope in your answer text so the user knows what the numbers cover.',
+      note: 'State this scope in your answer text. Use scope.seasonName for the year label — never invent a different season year.',
     },
   };
 }
@@ -100,7 +109,10 @@ async function callScopedStatsTool(
 function toolDescription(name: string, remoteDescription?: string): string {
   const base = remoteDescription ?? `Call the ${name} cricket tool`;
   if (name === 'compare_players_by_name') {
-    return `${base}. When leagueId and seasonId are omitted, the app defaults to IPL T20 (leagueId=1, format=T20). Results include appliedScope — always tell the user that label. For full career / international, the user must ask; then omit leagueId or pass their filters.`;
+    return `${base}. When leagueId and seasonId are omitted, defaults to IPL T20 (leagueId=1, format=T20). For a specific season/year, call resolve_season first and pass its seasonId — never hardcode ids. Season-scoped stats are summed from scorecards. Copy scope.seasonName in your summary.`;
+  }
+  if (name === 'get_batter_bowler_matchup') {
+    return `${base}. True H2H dismissals (and ball stats when available). Prefer batter+bowler names. When leagueId/seasonId omitted, defaults to IPL T20. For bat-vs-bowl questions also call compare_players_by_name.`;
   }
   return base;
 }

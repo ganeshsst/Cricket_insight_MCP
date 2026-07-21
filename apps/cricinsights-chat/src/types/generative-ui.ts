@@ -83,6 +83,14 @@ export type ComparisonEntity = {
   stats: Record<string, string | number>;
 };
 
+export type MetricDuelRow = {
+  metric: string;
+  valueA: string | number;
+  valueB: string | number;
+  /** Which side is stronger for this metric; omit or none when not comparable. */
+  winner?: 'a' | 'b' | 'tie' | 'none';
+};
+
 export type UIComponent =
   | { type: 'text'; content: string }
   | { type: 'player_hero'; player: PlayerHeroData }
@@ -92,6 +100,14 @@ export type UIComponent =
       title?: string;
       entities: ComparisonEntity[];
       metrics?: string[];
+    }
+  | {
+      type: 'metric_duel';
+      title?: string;
+      labelA?: string;
+      labelB?: string;
+      rows: MetricDuelRow[];
+      insight?: string;
     }
   | {
       type: 'bar_chart';
@@ -162,6 +178,18 @@ export type AiSummary = {
   text: string;
 };
 
+export type BedrockUsageMeta = {
+  modelId: string;
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  steps: number;
+  costUsd: number;
+  costFormatted: string;
+  inputPricePerM: number;
+  outputPricePerM: number;
+};
+
 /** Normalized page response for the command-bar UI. */
 export type CricInsightsResponse = {
   layout: LayoutType;
@@ -169,4 +197,6 @@ export type CricInsightsResponse = {
   text: string;
   ai_summary: AiSummary;
   ui: UIComponent[];
+  /** Bedrock token usage + estimated cost (does not affect model output). */
+  meta?: BedrockUsageMeta;
 };

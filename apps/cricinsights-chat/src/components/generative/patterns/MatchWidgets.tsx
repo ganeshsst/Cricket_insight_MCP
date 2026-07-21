@@ -7,11 +7,11 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import { ChartViewport } from './ChartViewport';
 import type {
   ComparisonEntity,
   MatchHeaderData,
@@ -116,25 +116,38 @@ export function ManhattanChartCard({
               <p className="mb-2 text-xs uppercase tracking-wider text-ink-dim">
                 {inn.label}
               </p>
-              <div className="h-48 w-full">
-                <ResponsiveContainer>
-                  <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(125,211,252,.12)" />
-                    <XAxis dataKey="over" tick={{ fill: '#9bb4c9', fontSize: 10 }} />
+              <ChartViewport height={192}>
+                {({ width, height }) => (
+                  <BarChart
+                    width={width}
+                    height={height}
+                    data={data}
+                    margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="rgba(125,211,252,.12)"
+                    />
+                    <XAxis
+                      dataKey="over"
+                      tick={{ fill: '#9bb4c9', fontSize: 10 }}
+                    />
                     <YAxis tick={{ fill: '#9bb4c9', fontSize: 10 }} />
                     <Tooltip
                       contentStyle={tooltipStyle}
                       labelStyle={tooltipLabelStyle}
                       itemStyle={tooltipItemStyle}
                       formatter={(value, _n, item) => {
-                        const w = (item?.payload as { wickets?: number })?.wickets;
-                        const bowler = (item?.payload as { bowler?: string })?.bowler;
+                        const w = (item?.payload as { wickets?: number })
+                          ?.wickets;
+                        const bowler = (item?.payload as { bowler?: string })
+                          ?.bowler;
                         const tip = `${value} runs${w ? ` · ${w} wkt` : ''}${bowler ? ` · ${bowler}` : ''}`;
                         return [tip, 'Over'];
                       }}
                       labelFormatter={(label) => `Over ${label}`}
                     />
-                    <Bar dataKey="runs" radius={[6, 6, 0, 0]}>
+                    <Bar dataKey="runs" radius={[6, 6, 0, 0]} isAnimationActive={false}>
                       {data.map((d, i) => (
                         <Cell
                           key={i}
@@ -143,8 +156,8 @@ export function ManhattanChartCard({
                       ))}
                     </Bar>
                   </BarChart>
-                </ResponsiveContainer>
-              </div>
+                )}
+              </ChartViewport>
             </div>
           );
         })}

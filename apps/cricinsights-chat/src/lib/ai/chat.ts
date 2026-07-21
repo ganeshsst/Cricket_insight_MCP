@@ -1,5 +1,6 @@
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { generateText, stepCountIs } from 'ai';
+import { buildBedrockUsageMeta } from '@/lib/ai/bedrock-usage';
 import { SYSTEM_PROMPT } from '@/lib/ai/prompt';
 import { parseModelJson, sanitizeUi } from '@/lib/ai/hydrate';
 import { fillUiFromToolResults } from '@/lib/ai/hydrate-from-tools';
@@ -29,10 +30,10 @@ function normalizeAssistantForModel(content: string): string {
   if (!trimmed) return trimmed;
   if (trimmed.startsWith(ASSISTANT_STUB_PREFIX)) return trimmed;
   if (trimmed.startsWith('{') && trimmed.includes('"widgets"')) {
-    return `${ASSISTANT_STUB_PREFIX} prior JSON page was shown. For a NEW player/match/stats ask, call tools and return full page JSON with widgets again.]`;
+    return `${ASSISTANT_STUB_PREFIX} prior JSON page was shown. For a NEW clear player/match/stats ask, call tools and return full page JSON. If vague (legends/others/best seasons without names), clarify with follow_up_chips — never invent.]`;
   }
   if (trimmed.length > 60) {
-    return `${ASSISTANT_STUB_PREFIX} prior cricket page was shown to the user (summary only in history). For any NEW player, match, or stats question: call tools and emit full JSON with layout + widgets — never prose-only.]`;
+    return `${ASSISTANT_STUB_PREFIX} prior cricket page was shown (summary only in history). Clear named asks → tools + full JSON widgets. Vague asks → clarify page with follow_up_chips, no invented stats.]`;
   }
   return trimmed;
 }
@@ -90,18 +91,41 @@ export async function runCricChat(
         ? 'hydrate_from_tools'
         : 'none';
 
+  const toolNames = (result.toolResults ?? []).map(
+    (t) => (t as { toolName?: string }).toolName,
+  );
+  const modelMetricTitles = (parsed.ui ?? [])
+    .filter((w) => w.type === 'metric_duel')
+    .map((w) => (w.type === 'metric_duel' ? w.title : null));
+  const finalMetricTitles = (withTools.ui ?? [])
+    .filter((w) => w.type === 'metric_duel')
+    .map((w) => (w.type === 'metric_duel' ? w.title : null));
+
   console.log('[cricinsights ui source]', {
     uiSource,
     modelUiCount,
     finalUiCount,
     modelWidgetTypes: (parsed.ui ?? []).map((w) => w.type),
     finalWidgetTypes: (withTools.ui ?? []).map((w) => w.type),
-    toolNames: (result.toolResults ?? []).map(
-      (t) => (t as { toolName?: string }).toolName,
-    ),
+    toolNames,
     layout: withTools.layout,
     title: withTools.title,
   });
+
+  // #region agent log
+  fetch('http://127.0.0.1:7887/ingest/7edc790d-29f3-447f-b728-46811f18af44',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d8849f'},body:JSON.stringify({sessionId:'d8849f',location:'chat.ts:runCricChat:postHydrate',message:'chat hydrate summary',data:{uiSource,modelUiCount,finalUiCount,toolNames,calledMatchup:toolNames.includes('get_batter_bowler_matchup'),calledCompare:toolNames.includes('compare_players_by_name'),modelMetricTitles,finalMetricTitles,hasH2HInFinal:finalMetricTitles.some(t=>t&&/head-to-head|h2h|matchup/i.test(t))},timestamp:Date.now(),hypothesisId:'A,B,D'})}).catch(()=>{});
+  // #endregion
+
+  const inputTokens = result.usage.inputTokens ?? 0;
+  const outputTokens = result.usage.outputTokens ?? 0;
+  const usageMeta = buildBedrockUsageMeta(
+    modelId,
+    inputTokens,
+    outputTokens,
+    result.steps.length,
+  );
+
+  console.log('[cricinsights bedrock usage]', usageMeta);
 
   const text =
     withTools.text?.trim() ||
@@ -117,5 +141,6 @@ export async function runCricChat(
       text: withTools.ai_summary.text || text,
     },
     ui: withTools.ui ? sanitizeUi(withTools.ui) : [],
+    meta: usageMeta,
   };
 }

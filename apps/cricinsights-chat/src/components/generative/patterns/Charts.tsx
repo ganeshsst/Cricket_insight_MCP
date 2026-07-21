@@ -11,12 +11,12 @@ import {
   PolarGrid,
   Radar,
   RadarChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
 import type { ChartPoint, RadarPoint } from '@/types/generative-ui';
+import { ChartViewport } from './ChartViewport';
 
 const tooltipStyle = {
   background: 'rgba(8,20,32,0.92)',
@@ -45,17 +45,28 @@ export function BarChartCard({
       <p className="display text-sm text-accent-2 mb-3">
         {title ?? metric}
       </p>
-      <div className="h-56 w-full">
-        <ResponsiveContainer>
-          <BarChart data={values} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+      <ChartViewport height={224}>
+        {({ width, height }) => (
+          <BarChart
+            width={width}
+            height={height}
+            data={values}
+            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(125,211,252,.12)" />
             <XAxis dataKey="label" tick={{ fill: '#9bb4c9', fontSize: 11 }} />
             <YAxis tick={{ fill: '#9bb4c9', fontSize: 11 }} />
             <Tooltip contentStyle={tooltipStyle} />
-            <Bar dataKey="value" name={metric} fill="#5eead4" radius={[8, 8, 0, 0]} />
+            <Bar
+              dataKey="value"
+              name={metric}
+              fill="#5eead4"
+              radius={[8, 8, 0, 0]}
+              isAnimationActive={false}
+            />
           </BarChart>
-        </ResponsiveContainer>
-      </div>
+        )}
+      </ChartViewport>
       {insight ? (
         <p className="mt-3 text-xs leading-relaxed text-ink-dim">{insight}</p>
       ) : null}
@@ -81,9 +92,14 @@ export function LineChartCard({
       <p className="display text-sm text-accent-2 mb-3">
         {title ?? metric}
       </p>
-      <div className="h-56 w-full">
-        <ResponsiveContainer>
-          <LineChart data={values} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+      <ChartViewport height={224}>
+        {({ width, height }) => (
+          <LineChart
+            width={width}
+            height={height}
+            data={values}
+            margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+          >
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(125,211,252,.12)" />
             <XAxis dataKey="label" tick={{ fill: '#9bb4c9', fontSize: 11 }} />
             <YAxis tick={{ fill: '#9bb4c9', fontSize: 11 }} />
@@ -95,10 +111,11 @@ export function LineChartCard({
               stroke="#38bdf8"
               strokeWidth={2.5}
               dot={{ fill: '#5eead4', r: 4 }}
+              isAnimationActive={false}
             />
           </LineChart>
-        </ResponsiveContainer>
-      </div>
+        )}
+      </ChartViewport>
     </motion.div>
   );
 }
@@ -120,21 +137,25 @@ export function RadarCard({
       <p className="display text-sm text-accent-2 mb-3">
         {title ?? 'Radar'}
       </p>
-      <div className="h-64 w-full">
-        <ResponsiveContainer>
-          <RadarChart data={data}>
+      <ChartViewport height={256}>
+        {({ width, height }) => (
+          <RadarChart width={width} height={height} data={data}>
             <PolarGrid stroke="rgba(125,211,252,.2)" />
-            <PolarAngleAxis dataKey="label" tick={{ fill: '#9bb4c9', fontSize: 11 }} />
+            <PolarAngleAxis
+              dataKey="label"
+              tick={{ fill: '#9bb4c9', fontSize: 11 }}
+            />
             <Radar
               dataKey="value"
               stroke="#5eead4"
               fill="#5eead4"
               fillOpacity={0.35}
+              isAnimationActive={false}
             />
             <Tooltip contentStyle={tooltipStyle} />
           </RadarChart>
-        </ResponsiveContainer>
-      </div>
+        )}
+      </ChartViewport>
     </motion.div>
   );
 }
