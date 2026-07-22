@@ -570,6 +570,93 @@ server.tool(
   async ({ venueId }) => jsonText(await apiGet(`/venues/${venueId}`)),
 );
 
+server.tool(
+  'query_player_rankings',
+  'Rank players by runs/wickets/average/strike_rate/economy. Filter by teamName (e.g. India), format, leagueId, seasonId, window=career|season|last_n_matches. Use for "most runs for X in recent T20s".',
+  {
+    metric: z
+      .enum(['runs', 'wickets', 'average', 'strike_rate', 'economy', 'dismissals'])
+      .optional()
+      .describe('Default runs'),
+    teamName: z.string().optional().describe('e.g. India'),
+    teamId: z.number().int().optional(),
+    leagueId: z.number().int().optional().describe('IPL = 1'),
+    seasonId: z.number().int().optional(),
+    format: z.string().optional().describe('T20, T20I, ODI, Test'),
+    window: z
+      .enum(['season', 'career', 'last_n_matches'])
+      .optional()
+      .describe('Default career; season requires seasonId'),
+    lastN: z.number().int().min(1).max(100).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+    minInnings: z.number().int().min(1).optional(),
+  },
+  async (args) =>
+    jsonText(await apiGet(`/analytics/player-rankings${buildQuery(args)}`)),
+);
+
+server.tool(
+  'query_player_vs_bowling',
+  'Batter vs bowling type (pace/spin/left_arm_pace/right_arm_pace/left_arm_spin/right_arm_spin). Returns dismissals, ball stats, struggle flag with defined rules, and recent fail innings. Use after rankings to prove weakness.',
+  {
+    q: z.string().optional().describe('Player name e.g. Rohit Sharma'),
+    playerId: z.string().optional(),
+    vs: z
+      .enum([
+        'pace',
+        'spin',
+        'left_arm_pace',
+        'right_arm_pace',
+        'left_arm_spin',
+        'right_arm_spin',
+        'any',
+      ])
+      .optional()
+      .describe('Default left_arm_pace'),
+    leagueId: z.number().int().optional(),
+    seasonId: z.number().int().optional(),
+    format: z.string().optional(),
+    teamName: z.string().optional(),
+    teamId: z.number().int().optional(),
+    include: z
+      .string()
+      .optional()
+      .describe('Comma list: dismissals,ballStats,recentFailInnings'),
+  },
+  async (args) =>
+    jsonText(await apiGet(`/analytics/player-vs-bowling${buildQuery(args)}`)),
+);
+
+server.tool(
+  'query_player_performances',
+  'Fixture-level best/worst/recent batting or bowling performances for a named player. Optional vsBowlingType filters batting dismissals. Use for match-level proof; copy fixtureId into get_match_scorecard.',
+  {
+    q: z.string().optional().describe('Player name'),
+    playerId: z.string().optional(),
+    kind: z.enum(['batting', 'bowling']).optional(),
+    sort: z.enum(['best', 'worst', 'recent']).optional(),
+    vsBowlingType: z
+      .enum([
+        'pace',
+        'spin',
+        'left_arm_pace',
+        'right_arm_pace',
+        'left_arm_spin',
+        'right_arm_spin',
+        'any',
+      ])
+      .optional(),
+    leagueId: z.number().int().optional(),
+    seasonId: z.number().int().optional(),
+    format: z.string().optional(),
+    teamName: z.string().optional(),
+    teamId: z.number().int().optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  },
+  async (args) =>
+    jsonText(await apiGet(`/analytics/player-performances${buildQuery(args)}`)),
+);
+
 return server;
 }
 

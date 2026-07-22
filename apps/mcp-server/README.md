@@ -32,6 +32,16 @@ Set `MCP_TRANSPORT=stdio` or `MCP_TRANSPORT=http` to override.
 
 Each tool maps 1:1 to a Cricket API endpoint. See [cricket-api README](../cricket-api/README.md) for full path details.
 
+### Analytics
+
+| Tool | API path |
+|------|----------|
+| `query_player_rankings` | `GET /analytics/player-rankings` |
+| `query_player_vs_bowling` | `GET /analytics/player-vs-bowling` |
+| `query_player_performances` | `GET /analytics/player-performances` |
+
+Use these for find/rank, vs bowling-type weakness, and match-level proof (few tools, rich filters).
+
 ### Players
 
 | Tool | API path |

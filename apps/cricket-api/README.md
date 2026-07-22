@@ -19,6 +19,22 @@ npm run dev
 
 All routes are `GET`. Public ids use SportMonks `sportmonks_id`.
 
+### Analytics (`/analytics`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/analytics/player-rankings` | Rank players by runs/wickets/average/SR/economy (team, format, window) |
+| GET | `/analytics/player-vs-bowling` | Batter vs bowling type (pace/spin/left-arm pace) + struggle flag |
+| GET | `/analytics/player-performances` | Fixture-level best/worst/recent batting or bowling |
+
+**Rankings query params:** `metric`, `teamId` / `teamName`, `leagueId`, `seasonId`, `format`, `window` (`career` \| `season` \| `last_n_matches`), `lastN`, `limit`, `minInnings`.
+
+**Vs-bowling query params:** `q` / `playerId`, `vs` (`left_arm_pace`, `spin`, `pace`, …), scope filters, `include`.
+
+**Performances query params:** `q` / `playerId`, `kind`, `sort`, `vsBowlingType`, scope filters, `limit`.
+
+Struggle definition (API-owned): ≥35% dismissals to type (≥5 dismissals) **or** SR vs type ≤85% of overall (≥30 balls).
+
 ### Players (`/players`)
 
 | Method | Path | Description |

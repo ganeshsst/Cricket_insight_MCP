@@ -4,18 +4,33 @@ import type {
   LayoutType,
   UIComponent,
 } from '@/types/generative-ui';
-import { resolvePlayerPhoto } from '@/lib/utils';
+import { resolvePlayerPhoto, stripInlineMarkdown } from '@/lib/utils';
 import { chatResponseSchema, uiComponentSchema } from '@/lib/ai/schema';
 
-/** Fix image URLs only — does not invent widgets or text. */
+/** Fix image URLs and strip Markdown from plain-label fields (not prose bodies). */
 export function sanitizeUi(ui: UIComponent[]): UIComponent[] {
   return ui.map((item) => {
+    if (item.type === 'text') {
+      return item; // prose — rendered with react-markdown
+    }
     if (item.type === 'player_hero') {
       return {
         ...item,
         player: {
           ...item.player,
+          name: stripInlineMarkdown(item.player.name),
+          subtitle: item.player.subtitle
+            ? stripInlineMarkdown(item.player.subtitle)
+            : item.player.subtitle,
           imageUrl: resolvePlayerPhoto(item.player.imageUrl, item.player.name),
+          chips: item.player.chips?.map((c) => ({
+            ...c,
+            label: stripInlineMarkdown(c.label),
+            value:
+              typeof c.value === 'string'
+                ? stripInlineMarkdown(c.value)
+                : c.value,
+          })),
         },
       };
     }
@@ -24,6 +39,10 @@ export function sanitizeUi(ui: UIComponent[]): UIComponent[] {
         ...item,
         playerA: {
           ...item.playerA,
+          name: stripInlineMarkdown(item.playerA.name),
+          subtitle: item.playerA.subtitle
+            ? stripInlineMarkdown(item.playerA.subtitle)
+            : item.playerA.subtitle,
           imageUrl: resolvePlayerPhoto(
             item.playerA.imageUrl,
             item.playerA.name,
@@ -31,6 +50,10 @@ export function sanitizeUi(ui: UIComponent[]): UIComponent[] {
         },
         playerB: {
           ...item.playerB,
+          name: stripInlineMarkdown(item.playerB.name),
+          subtitle: item.playerB.subtitle
+            ? stripInlineMarkdown(item.playerB.subtitle)
+            : item.playerB.subtitle,
           imageUrl: resolvePlayerPhoto(
             item.playerB.imageUrl,
             item.playerB.name,
@@ -41,8 +64,10 @@ export function sanitizeUi(ui: UIComponent[]): UIComponent[] {
     if (item.type === 'comparison_table') {
       return {
         ...item,
+        title: item.title ? stripInlineMarkdown(item.title) : item.title,
         entities: item.entities.map((e) => ({
           ...e,
+          name: stripInlineMarkdown(e.name),
           imageUrl: resolvePlayerPhoto(e.imageUrl, e.name),
         })),
       };
@@ -50,10 +75,42 @@ export function sanitizeUi(ui: UIComponent[]): UIComponent[] {
     if (item.type === 'podium') {
       return {
         ...item,
+        title: item.title ? stripInlineMarkdown(item.title) : item.title,
         entries: item.entries.map((e) => ({
           ...e,
+          name: stripInlineMarkdown(e.name),
           imageUrl: resolvePlayerPhoto(e.imageUrl, e.name),
+          value:
+            typeof e.value === 'string'
+              ? stripInlineMarkdown(e.value)
+              : e.value,
         })),
+      };
+    }
+    if (item.type === 'follow_up_chips') {
+      return {
+        ...item,
+        prompts: item.prompts.map((p) => stripInlineMarkdown(p)),
+      };
+    }
+    if (item.type === 'metric_duel') {
+      return {
+        ...item,
+        title: item.title ? stripInlineMarkdown(item.title) : item.title,
+        labelA: item.labelA ? stripInlineMarkdown(item.labelA) : item.labelA,
+        labelB: item.labelB ? stripInlineMarkdown(item.labelB) : item.labelB,
+        insight: item.insight ? stripInlineMarkdown(item.insight) : item.insight,
+      };
+    }
+    if (item.type === 'stats_table') {
+      return {
+        ...item,
+        headers: item.headers.map((h) => stripInlineMarkdown(h)),
+        rows: item.rows.map((row) =>
+          row.map((cell) =>
+            typeof cell === 'string' ? stripInlineMarkdown(cell) : cell,
+          ),
+        ),
       };
     }
     return item;
@@ -64,7 +121,9 @@ function normalizeSummary(raw: unknown, fallbackText: string): AiSummary {
   if (raw && typeof raw === 'object' && 'text' in (raw as object)) {
     const s = raw as { headline?: string; text?: string };
     return {
-      headline: stripPlanning((s.headline ?? 'Insight').trim()) || 'Insight',
+      headline:
+        stripPlanning((s.headline ?? 'Insight').trim()) || 'Insight',
+      // Keep Markdown in body text for react-markdown; headlines stay readable
       text: stripPlanning((s.text ?? fallbackText).trim()) || fallbackText,
     };
   }

@@ -4,7 +4,10 @@
   "private": true,
   "nx": {
     "name": "cricinsights-chat",
-    "tags": ["type:app", "scope:web"]
+    "tags": [
+      "type:app",
+      "scope:web"
+    ]
   },
   "scripts": {
     "dev": "next dev --port 3003",
@@ -21,6 +24,7 @@
     "next": "~16.1.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
     "recharts": "^3.9.2",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"

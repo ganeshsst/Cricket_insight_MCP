@@ -688,6 +688,204 @@ function pageHasH2HWidget(ui: UIComponent[] | undefined): boolean {
   );
 }
 
+function widgetsFromRankings(out: unknown): UIComponent[] {
+  const o = asRecord(out);
+  const rows = Array.isArray(o.rows) ? o.rows : [];
+  if (!rows.length) return [];
+  const metric = typeof o.metric === 'string' ? o.metric : 'runs';
+  const widgets: UIComponent[] = [
+    {
+      type: 'podium',
+      title: `Top by ${metric.replace('_', ' ')}`,
+      entries: rows.slice(0, 3).map((r, i) => {
+        const row = asRecord(r);
+        const name =
+          (typeof row.playerName === 'string' && row.playerName) || 'Player';
+        return {
+          rank: numOrNull(row.rank) ?? i + 1,
+          name,
+          imageUrl: resolvePlayerPhoto(
+            typeof row.imagePath === 'string' ? row.imagePath : null,
+            name,
+          ),
+          value: (row.value as string | number) ?? '—',
+          metric,
+        };
+      }),
+    },
+    {
+      type: 'stats_table',
+      headers: ['Rank', 'Player', 'Value', 'Inns'],
+      rows: rows.slice(0, 15).map((r) => {
+        const row = asRecord(r);
+        return [
+          String(row.rank ?? ''),
+          String(row.playerName ?? ''),
+          String(row.value ?? ''),
+          String(row.innings ?? ''),
+        ];
+      }),
+    },
+  ];
+  if (typeof o.note === 'string' && o.note) {
+    widgets.push({ type: 'text', content: o.note });
+  }
+  widgets.push({
+    type: 'follow_up_chips',
+    prompts: [
+      'Show struggle vs left-arm pace for the #1 batter',
+      'Best batting performances for the top player',
+      'Compare top two batters IPL',
+    ],
+  });
+  return widgets;
+}
+
+function widgetsFromVsBowling(out: unknown): UIComponent[] {
+  const o = asRecord(out);
+  const player = asRecord(o.player);
+  const name =
+    (typeof player.name === 'string' && player.name) || 'Player';
+  const vs = typeof o.vs === 'string' ? o.vs : 'bowling type';
+  const struggle = asRecord(o.struggle);
+  const ball = asRecord(o.ballStats);
+  const overall = asRecord(o.overallBallStats);
+  const widgets: UIComponent[] = [
+    {
+      type: 'player_hero',
+      player: {
+        name,
+        imageUrl: resolvePlayerPhoto(
+          typeof player.imagePath === 'string' ? player.imagePath : null,
+          name,
+        ),
+        subtitle: `vs ${vs.replace(/_/g, ' ')}`,
+        chips: [
+          {
+            label: 'Dismissals vs type',
+            value: numOrNull(o.dismissalsVsType) ?? 0,
+          },
+          {
+            label: 'Share %',
+            value: numOrNull(o.dismissalSharePct) ?? '—',
+          },
+        ],
+      },
+    },
+    {
+      type: 'metric_duel',
+      title: `Ball stats vs ${vs.replace(/_/g, ' ')}`,
+      labelA: 'vs type',
+      labelB: 'overall',
+      rows: [
+        {
+          metric: 'Balls',
+          valueA: numOrNull(ball.ballsFaced) ?? 0,
+          valueB: numOrNull(overall.ballsFaced) ?? '—',
+          winner: 'none' as const,
+        },
+        {
+          metric: 'Runs',
+          valueA: numOrNull(ball.runsScored) ?? 0,
+          valueB: numOrNull(overall.runsScored) ?? '—',
+          winner: 'none' as const,
+        },
+        {
+          metric: 'Strike Rate',
+          valueA: numOrNull(ball.strikeRate) ?? '—',
+          valueB: numOrNull(overall.strikeRate) ?? '—',
+          winner: 'none' as const,
+        },
+      ],
+      insight:
+        struggle.flagged === true
+          ? `Struggle flagged: ${Array.isArray(struggle.reasons) ? struggle.reasons.join('; ') : ''}`
+          : typeof struggle.definition === 'string'
+            ? struggle.definition
+            : undefined,
+    },
+  ];
+  const fails = Array.isArray(o.recentFailInnings) ? o.recentFailInnings : [];
+  if (fails.length) {
+    widgets.push({
+      type: 'stats_table',
+      headers: ['Match', 'Outcome', 'Runs', 'Bowler'],
+      rows: fails.slice(0, 8).map((f) => {
+        const row = asRecord(f);
+        return [
+          String(row.matchTitle ?? row.fixtureId ?? ''),
+          String(row.outcome ?? ''),
+          String(row.batterRuns ?? ''),
+          String(row.bowlerName ?? ''),
+        ];
+      }),
+    });
+  }
+  if (typeof o.note === 'string' && o.note) {
+    widgets.push({ type: 'text', content: o.note });
+  }
+  return widgets;
+}
+
+function widgetsFromPerformances(out: unknown): UIComponent[] {
+  const o = asRecord(out);
+  const player = asRecord(o.player);
+  const name =
+    (typeof player.name === 'string' && player.name) || 'Player';
+  const rows = Array.isArray(o.rows) ? o.rows : [];
+  if (!rows.length) return [];
+  const kind = typeof o.kind === 'string' ? o.kind : 'batting';
+  const isBowl = kind === 'bowling';
+  return [
+    {
+      type: 'player_hero',
+      player: {
+        name,
+        imageUrl: resolvePlayerPhoto(
+          typeof player.imagePath === 'string' ? player.imagePath : null,
+          name,
+        ),
+        subtitle: `${typeof o.sort === 'string' ? o.sort : 'best'} ${kind}`,
+      },
+    },
+    {
+      type: 'stats_table',
+      headers: isBowl
+        ? ['Match', 'Overs', 'Wickets', 'Runs', 'Econ']
+        : ['Match', 'Runs', 'Balls', 'SR', 'Dismissal'],
+      rows: rows.slice(0, 12).map((r) => {
+        const row = asRecord(r);
+        if (isBowl) {
+          return [
+            String(row.matchTitle ?? row.fixtureId ?? ''),
+            String(row.overs ?? ''),
+            String(row.wickets ?? ''),
+            String(row.runsConceded ?? ''),
+            String(row.economy ?? ''),
+          ];
+        }
+        return [
+          String(row.matchTitle ?? row.fixtureId ?? ''),
+          String(row.runs ?? ''),
+          String(row.balls ?? ''),
+          String(row.strikeRate ?? ''),
+          String(row.dismissalOutcome ?? ''),
+        ];
+      }),
+    },
+    {
+      type: 'follow_up_chips',
+      prompts: rows.slice(0, 3).map((r) => {
+        const row = asRecord(r);
+        const id = String(row.fixtureId ?? '');
+        return id
+          ? `Show scorecard for fixture ${id}`
+          : 'Show recent match scorecard';
+      }),
+    },
+  ];
+}
+
 export function fillUiFromToolResults(
   page: CricInsightsResponse,
   toolResults: Array<{ toolName?: string; output?: unknown }> | undefined,
@@ -697,15 +895,54 @@ export function fillUiFromToolResults(
     .reverse()
     .find((h) => h.toolName === 'get_match_scorecard');
   const matchupHit = hits.find((h) => h.toolName === 'get_batter_bowler_matchup');
-  const compareHit = hits.find((h) => h.toolName === 'compare_players_by_name');
+  const rankingHit = hits.find((h) => h.toolName === 'query_player_rankings');
+  const vsBowlingHit = hits.find((h) => h.toolName === 'query_player_vs_bowling');
+  const performancesHit = hits.find(
+    (h) => h.toolName === 'query_player_performances',
+  );
+  const hasAnalyticsHits = Boolean(
+    rankingHit || vsBowlingHit || performancesHit,
+  );
   const hasH2HInPage = pageHasH2HWidget(page.ui);
 
   const shouldReplaceScorecard =
     Boolean(scorecardHit) && isWeakScorecardUi(page.ui ?? []);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7887/ingest/7edc790d-29f3-447f-b728-46811f18af44',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'d8849f'},body:JSON.stringify({sessionId:'d8849f',location:'hydrate-from-tools.ts:fillUiFromToolResults:entry',message:'hydrate entry',data:{toolNames:hits.map(h=>h.toolName),modelUiCount:page.ui?.length??0,modelWidgetTypes:(page.ui??[]).map(w=>w.type),hasMatchupHit:Boolean(matchupHit),hasCompareHit:Boolean(compareHit),hasH2HInPage,shouldReplaceScorecard},timestamp:Date.now(),hypothesisId:'A,B'})}).catch(()=>{});
-  // #endregion
+  // Prefer tool-backed analytics pages over model-invented widgets.
+  if (hasAnalyticsHits) {
+    const widgets: UIComponent[] = [];
+    if (rankingHit) widgets.push(...widgetsFromRankings(rankingHit.output));
+    if (vsBowlingHit) widgets.push(...widgetsFromVsBowling(vsBowlingHit.output));
+    if (performancesHit) {
+      widgets.push(...widgetsFromPerformances(performancesHit.output));
+    }
+    if (widgets.length) {
+      const topName =
+        rankingHit &&
+        Array.isArray(asRecord(rankingHit.output).rows) &&
+        asRecord(
+          (asRecord(rankingHit.output).rows as unknown[])[0],
+        ).playerName;
+      return {
+        ...page,
+        layout: 'tournament',
+        title:
+          page.title && page.title !== 'CricInsights'
+            ? page.title
+            : typeof topName === 'string'
+              ? `Analytics: ${topName}`
+              : 'Player analytics',
+        ai_summary: {
+          headline:
+            page.ai_summary?.headline && page.ai_summary.headline !== 'Insight'
+              ? page.ai_summary.headline
+              : 'Data-backed player analytics',
+          text: page.ai_summary?.text || page.text,
+        },
+        ui: sanitizeUi(widgets),
+      };
+    }
+  }
 
   if (page.ui?.length && !shouldReplaceScorecard) {
     // #region agent log

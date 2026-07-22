@@ -12,6 +12,7 @@ import {
   YAxis,
 } from 'recharts';
 import { ChartViewport } from './ChartViewport';
+import { MarkdownProse } from './MarkdownProse';
 import type {
   ComparisonEntity,
   MatchHeaderData,
@@ -422,8 +423,12 @@ export function AiInsightsCard({
       animate={{ opacity: 1, y: 0 }}
       className="glass rounded-2xl border-l-2 border-l-teal-300/70 p-5"
     >
-      <p className="display text-sm text-accent">{headline}</p>
-      <p className="mt-2 text-sm leading-relaxed text-ink">{text}</p>
+      <MarkdownProse
+        content={headline}
+        compact
+        className="display text-sm text-accent [&_strong]:text-accent"
+      />
+      <MarkdownProse content={text} className="mt-2 text-ink" />
     </motion.div>
   );
 }

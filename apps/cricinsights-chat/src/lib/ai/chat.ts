@@ -5,6 +5,7 @@ import { SYSTEM_PROMPT } from '@/lib/ai/prompt';
 import { parseModelJson, sanitizeUi } from '@/lib/ai/hydrate';
 import { fillUiFromToolResults } from '@/lib/ai/hydrate-from-tools';
 import { buildAiTools } from '@/lib/mcp/ai-tools';
+import { stripInlineMarkdown } from '@/lib/utils';
 import type { CricInsightsResponse } from '@/types/generative-ui';
 
 const bedrock = createAmazonBedrock({
@@ -134,10 +135,13 @@ export async function runCricChat(
 
   return {
     layout: withTools.layout,
-    title: withTools.title,
+    title: stripInlineMarkdown(
+      withTools.title?.trim() || withTools.ai_summary?.headline || 'CricInsights',
+    ),
     text,
     ai_summary: {
-      headline: withTools.ai_summary.headline || withTools.title || 'Insight',
+      headline:
+        withTools.ai_summary.headline || withTools.title || 'Insight',
       text: withTools.ai_summary.text || text,
     },
     ui: withTools.ui ? sanitizeUi(withTools.ui) : [],

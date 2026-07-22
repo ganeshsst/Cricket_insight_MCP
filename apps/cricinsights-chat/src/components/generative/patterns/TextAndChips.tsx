@@ -1,16 +1,17 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { MarkdownProse } from './MarkdownProse';
 
 export function TextBlock({ content }: { content: string }) {
   return (
-    <motion.p
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="glass rounded-2xl px-4 py-3 text-[15px] leading-relaxed text-ink"
     >
-      {content}
-    </motion.p>
+      <MarkdownProse content={content} className="text-[15px]" />
+    </motion.div>
   );
 }
 
