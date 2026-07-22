@@ -164,7 +164,7 @@ export class AnalyticsService {
       bowler_style: string | null;
       matches_vs: boolean;
       fixture_id: string;
-      starting_at: string | null;
+      date_key: string | null;
       local_team: string | null;
       visitor_team: string | null;
       runs_scored: number | null;
@@ -175,7 +175,7 @@ export class AnalyticsService {
               bp.bowlingstyle AS bowler_style,
               (${styleSql}) AS matches_vs,
               fb.fixture_id::text,
-              ff.starting_at::text,
+              ff.date_key::text,
               lt.name AS local_team,
               vt.name AS visitor_team,
               fb.runs_scored,
@@ -188,7 +188,7 @@ export class AnalyticsService {
        LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
        LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
        WHERE ${conditions.join(' AND ')}
-       ORDER BY ff.starting_at DESC NULLS LAST`,
+       ORDER BY ff.date_key DESC NULLS LAST`,
       params,
     );
 
@@ -209,7 +209,7 @@ export class AnalyticsService {
         if (include.has('recentfailinnings') && recentFailInnings.length < 8) {
           recentFailInnings.push({
             fixtureId: row.fixture_id,
-            date: row.starting_at,
+            date: row.date_key,
             matchTitle:
               row.local_team && row.visitor_team
                 ? `${row.local_team} vs ${row.visitor_team}`
@@ -391,7 +391,7 @@ export class AnalyticsService {
       const lastNParam = `$${params.length}`;
       withPrefix = `WITH recent_fixtures AS (
         SELECT fixture_id FROM (
-          SELECT ff.fixture_id, MAX(ff.starting_at) AS sa
+          SELECT ff.fixture_id, MAX(ff.date_key) AS sa
           FROM gold.fact_fixture ff
           JOIN matches.fixture_batting fb ON fb.fixture_id = ff.fixture_id
           WHERE ${conditions.join(' AND ')}
@@ -532,7 +532,7 @@ export class AnalyticsService {
       const lastNParam = `$${params.length}`;
       withPrefix = `WITH recent_fixtures AS (
         SELECT fixture_id FROM (
-          SELECT ff.fixture_id, MAX(ff.starting_at) AS sa
+          SELECT ff.fixture_id, MAX(ff.date_key) AS sa
           FROM gold.fact_fixture ff
           JOIN matches.fixture_bowling bowl ON bowl.fixture_id = ff.fixture_id
           WHERE ${conditions.join(' AND ')}
@@ -654,14 +654,14 @@ export class AnalyticsService {
 
     const orderBy =
       sort === 'recent'
-        ? 'ff.starting_at DESC NULLS LAST'
+        ? 'ff.date_key DESC NULLS LAST'
         : sort === 'worst'
           ? 'fb.runs_scored ASC NULLS LAST, fb.balls_faced DESC'
           : 'fb.runs_scored DESC NULLS LAST, fb.balls_faced ASC';
 
     const { rows } = await this.db.query<{
       fixture_id: string;
-      starting_at: string | null;
+      date_key: string | null;
       local_team: string | null;
       visitor_team: string | null;
       team_id: string | null;
@@ -676,7 +676,7 @@ export class AnalyticsService {
       bowler_style: string | null;
     }>(
       `SELECT fb.fixture_id::text,
-              ff.starting_at::text,
+              ff.date_key::text,
               lt.name AS local_team,
               vt.name AS visitor_team,
               fb.team_id::text,
@@ -708,7 +708,7 @@ export class AnalyticsService {
           : row.local_team;
       return {
         fixtureId: row.fixture_id,
-        date: row.starting_at,
+        date: row.date_key,
         matchTitle:
           row.local_team && row.visitor_team
             ? `${row.local_team} vs ${row.visitor_team}`
@@ -758,14 +758,14 @@ export class AnalyticsService {
 
     const orderBy =
       sort === 'recent'
-        ? 'ff.starting_at DESC NULLS LAST'
+        ? 'ff.date_key DESC NULLS LAST'
         : sort === 'worst'
           ? 'bowl.wickets ASC NULLS LAST, bowl.runs_conceded DESC'
           : 'bowl.wickets DESC NULLS LAST, bowl.runs_conceded ASC';
 
     const { rows } = await this.db.query<{
       fixture_id: string;
-      starting_at: string | null;
+      date_key: string | null;
       local_team: string | null;
       visitor_team: string | null;
       team_id: string | null;
@@ -776,7 +776,7 @@ export class AnalyticsService {
       economy: string | null;
     }>(
       `SELECT bowl.fixture_id::text,
-              ff.starting_at::text,
+              ff.date_key::text,
               lt.name AS local_team,
               vt.name AS visitor_team,
               bowl.team_id::text,
@@ -806,7 +806,7 @@ export class AnalyticsService {
           : row.local_team;
       return {
         fixtureId: row.fixture_id,
-        date: row.starting_at,
+        date: row.date_key,
         matchTitle:
           row.local_team && row.visitor_team
             ? `${row.local_team} vs ${row.visitor_team}`

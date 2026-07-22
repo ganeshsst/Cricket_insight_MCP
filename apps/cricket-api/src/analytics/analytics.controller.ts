@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service.js';
 import {
@@ -13,7 +13,10 @@ import {
 @ApiTags('analytics')
 @Controller('analytics')
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {}
+  constructor(
+    @Inject(AnalyticsService)
+    private readonly analyticsService: AnalyticsService,
+  ) {}
 
   @Get('player-rankings')
   @ApiOperation({

@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { CricketThinking } from '@/components/chat/CricketThinking';
 import { GenerativeRenderer } from '@/components/generative/GenerativeRenderer';
 import { AiInsightsCard } from '@/components/generative/patterns/MatchWidgets';
 import type {
@@ -38,19 +39,6 @@ const STARTERS = [
 
 function newId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-function SkeletonCard() {
-  return (
-    <div className="space-y-4 overflow-hidden">
-      <div className="glass h-20 animate-pulse rounded-2xl" />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="glass h-48 animate-pulse rounded-2xl" />
-        <div className="glass h-48 animate-pulse rounded-2xl" />
-      </div>
-      <p className="text-center text-sm text-ink-dim">Building your cricket page…</p>
-    </div>
-  );
 }
 
 function AnswerCard({
@@ -309,7 +297,7 @@ export function ChatShell() {
                     <p className="mt-1 mb-4 break-words text-sm text-ink">
                       {turn.query}
                     </p>
-                    <SkeletonCard />
+                    <CricketThinking />
                   </div>
                 )}
               </motion.div>
