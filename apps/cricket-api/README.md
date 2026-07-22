@@ -19,6 +19,22 @@ npm run dev
 
 All routes are `GET`. Public ids use SportMonks `sportmonks_id`.
 
+### Analytics (`/analytics`)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/analytics/player-rankings` | Rank players by runs/wickets/average/SR/economy (team, format, window) |
+| GET | `/analytics/player-vs-bowling` | Batter vs bowling type (pace/spin/left-arm pace) + struggle flag |
+| GET | `/analytics/player-performances` | Fixture-level best/worst/recent batting or bowling |
+
+**Rankings query params:** `metric`, `teamId` / `teamName`, `leagueId`, `seasonId`, `format`, `window` (`career` \| `season` \| `last_n_matches`), `lastN`, `limit`, `minInnings`.
+
+**Vs-bowling query params:** `q` / `playerId`, `vs` (`left_arm_pace`, `spin`, `pace`, …), scope filters, `include`.
+
+**Performances query params:** `q` / `playerId`, `kind`, `sort`, `vsBowlingType`, scope filters, `limit`.
+
+Struggle definition (API-owned): ≥35% dismissals to type (≥5 dismissals) **or** SR vs type ≤85% of overall (≥30 balls).
+
 ### Players (`/players`)
 
 | Method | Path | Description |
@@ -26,14 +42,20 @@ All routes are `GET`. Public ids use SportMonks `sportmonks_id`.
 | GET | `/players/search?q=` | Search players by name |
 | GET | `/players/compare?ids=` | Compare 2–4 players side by side (comma-separated ids) |
 | GET | `/players/compare-by-name?a=&b=` | Compare two players by name |
+| GET | `/players/matchup?batterId=&bowlerId=` | Batter vs bowler H2H (dismissals + ball stats) |
+| GET | `/players/matchup-by-name?batter=&bowler=` | Same H2H by name (`a`+`b` also works for role inference) |
 | GET | `/players/by-name/stats?q=` | Resolve a player by name and return profile + batting/bowling stats |
+| GET | `/players/by-name/dismissals?q=` | Resolve a player by name and return dismissal/weakness profile |
 | GET | `/players/:sportmonksId` | Player profile |
 | GET | `/players/:sportmonksId/batting-stats` | Aggregate batting stats |
 | GET | `/players/:sportmonksId/bowling-stats` | Aggregate bowling stats |
 | GET | `/players/:sportmonksId/career` | Per-season batting and bowling career breakdown |
 | GET | `/players/:sportmonksId/matches` | Fixture-level batting and bowling match log |
+| GET | `/players/:sportmonksId/dismissals` | Dismissal breakdown (type, pace vs spin, phase) |
 
 Optional query params for stats/career/matches: `format`, `seasonId`, `leagueId`, `limit`.
+
+When `seasonId` is set, player batting/bowling stats for compare and `/by-name/stats` are **aggregated from ingested scorecards** (`fixture_batting` / `fixture_bowling`). League-wide career queries (`leagueId` only) use `player_career_stats`.
 
 ### Matches (`/matches`)
 

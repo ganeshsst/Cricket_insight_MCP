@@ -1,6 +1,13 @@
 import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
+  ApiSquadQuery,
+  ApiTeamHeadToHeadQuery,
+  ApiTeamIdParam,
+  ApiTeamSearchQuery,
+  ApiTeamSeasonStatsQuery,
+} from '../common/swagger.decorators.js';
+import {
   SquadQueryDto,
   TeamDto,
   TeamHeadToHeadDto,
@@ -19,6 +26,7 @@ export class TeamsController {
 
   @Get('search')
   @ApiOperation({ summary: 'Search teams by name or code' })
+  @ApiTeamSearchQuery()
   @ApiOkResponse({ type: TeamDto, isArray: true })
   search(@Query() query: TeamSearchQueryDto) {
     return this.teamsService.search(query.q, query.limit ?? 20);
@@ -26,6 +34,7 @@ export class TeamsController {
 
   @Get('head-to-head')
   @ApiOperation({ summary: 'Head-to-head record between two teams' })
+  @ApiTeamHeadToHeadQuery()
   @ApiOkResponse({ type: TeamHeadToHeadDto })
   headToHead(@Query() query: TeamHeadToHeadQueryDto) {
     return this.teamsService.getHeadToHead(query);
@@ -33,6 +42,8 @@ export class TeamsController {
 
   @Get(':teamId/season-stats')
   @ApiOperation({ summary: 'Team aggregate season stats' })
+  @ApiTeamIdParam()
+  @ApiTeamSeasonStatsQuery()
   @ApiOkResponse({ type: TeamSeasonStatsDto })
   seasonStats(
     @Param('teamId') teamId: string,
@@ -43,6 +54,8 @@ export class TeamsController {
 
   @Get(':teamId/squad')
   @ApiOperation({ summary: 'Team squad for a season' })
+  @ApiTeamIdParam()
+  @ApiSquadQuery()
   @ApiOkResponse({ type: TeamSquadDto })
   squad(@Param('teamId') teamId: string, @Query() query: SquadQueryDto) {
     return this.teamsService.getSquad(teamId, query.seasonId);
@@ -50,6 +63,7 @@ export class TeamsController {
 
   @Get(':teamId')
   @ApiOperation({ summary: 'Get team profile' })
+  @ApiTeamIdParam()
   @ApiOkResponse({ type: TeamDto })
   getTeam(@Param('teamId') teamId: string) {
     return this.teamsService.getById(teamId);

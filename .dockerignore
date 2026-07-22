@@ -1,0 +1,32 @@
+# Dependencies and build output
+node_modules
+**/node_modules
+dist
+**/dist
+.next
+.nx
+cdk.out
+coverage
+*.tsbuildinfo
+
+# Git and local secrets
+.git
+.gitignore
+.env
+.env.*
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Apps not needed for API/MCP Docker images (reduces build context + memory)
+apps/cricinsights
+apps/infra
+apps/waitlist-api
+apps/db-migrate-lambda
+
+# Docs and local-only assets
+local db
+scripts

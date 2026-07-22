@@ -63,6 +63,45 @@ export class PlayerCompareByNameQueryDto extends PlayerStatsQueryDto {
   b!: string;
 }
 
+/** Batter vs bowler head-to-head. Prefer batter+bowler; or pass a+b to auto-assign roles. */
+export class PlayerMatchupByNameQueryDto extends PlayerStatsQueryDto {
+  @ApiPropertyOptional({ example: 'Virat Kohli', description: 'Batter name' })
+  @IsOptional()
+  @IsString()
+  batter?: string;
+
+  @ApiPropertyOptional({ example: 'Jasprit Bumrah', description: 'Bowler name' })
+  @IsOptional()
+  @IsString()
+  bowler?: string;
+
+  @ApiPropertyOptional({
+    example: 'Virat Kohli',
+    description: 'Player A when batter/bowler roles are not specified',
+  })
+  @IsOptional()
+  @IsString()
+  a?: string;
+
+  @ApiPropertyOptional({
+    example: 'Jasprit Bumrah',
+    description: 'Player B when batter/bowler roles are not specified',
+  })
+  @IsOptional()
+  @IsString()
+  b?: string;
+}
+
+export class PlayerMatchupQueryDto extends PlayerStatsQueryDto {
+  @ApiPropertyOptional({ example: '46' })
+  @IsString()
+  batterId!: string;
+
+  @ApiPropertyOptional({ example: '55' })
+  @IsString()
+  bowlerId!: string;
+}
+
 export class PlayerSearchResultDto {
   sportmonksId!: string;
   fullname!: string;
@@ -125,6 +164,33 @@ export class PlayerMatchesQueryDto extends PlayerStatsQueryDto {
   @Type(() => Number)
   @IsInt()
   limit?: number = 20;
+}
+
+export class PlayerDismissalByNameQueryDto extends PlayerStatsQueryDto {
+  @ApiPropertyOptional({ example: 'Virat Kohli' })
+  @IsString()
+  q!: string;
+}
+
+export class DismissalBreakdownRowDto {
+  label!: string;
+  count!: number;
+  percentage!: number;
+}
+
+export class PlayerDismissalAnalysisDto {
+  playerId!: string;
+  playerName!: string | null;
+  imagePath!: string | null;
+  scope!: StatsScopeDto;
+  /** Dismissals attributed to how the batter got out (excludes not-outs). */
+  totalDismissals!: number;
+  notOuts!: number;
+  byDismissalType!: DismissalBreakdownRowDto[];
+  byBowlerType!: DismissalBreakdownRowDto[];
+  byBowlingStyle!: DismissalBreakdownRowDto[];
+  byPhase!: DismissalBreakdownRowDto[];
+  note?: string;
 }
 
 export class PlayerCareerSeasonDto {
@@ -195,6 +261,46 @@ export class PlayerCompareEntryDto {
 export class PlayerCompareDto {
   scope!: StatsScopeDto;
   players!: PlayerCompareEntryDto[];
+}
+
+export class PlayerMatchupPartyDto {
+  playerId!: string;
+  name!: string | null;
+  imagePath!: string | null;
+  role!: 'batter' | 'bowler';
+}
+
+export class PlayerMatchupDismissalRowDto {
+  fixtureId!: string;
+  date!: string | null;
+  matchTitle!: string | null;
+  outcome!: string | null;
+  batterRuns!: number | null;
+  batterBalls!: number | null;
+}
+
+export class PlayerMatchupBallStatsDto {
+  ballsFaced!: number;
+  runsScored!: number;
+  wickets!: number;
+  fours!: number;
+  sixes!: number;
+  strikeRate!: number | null;
+  available!: boolean;
+}
+
+export class PlayerMatchupDto {
+  scope!: StatsScopeDto;
+  batter!: PlayerMatchupPartyDto;
+  bowler!: PlayerMatchupPartyDto;
+  /** Times this bowler dismissed this batter in loaded scorecards. */
+  dismissals!: number;
+  byDismissalType!: DismissalBreakdownRowDto[];
+  recentDismissals!: PlayerMatchupDismissalRowDto[];
+  /** Ball-level H2H when fixture_balls coverage exists for the pair. */
+  ballStats!: PlayerMatchupBallStatsDto;
+  roleAssignment!: 'explicit' | 'inferred';
+  note?: string;
 }
 
 export class PlayerStatsBundleDto {

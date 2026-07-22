@@ -1,4 +1,4 @@
-import { getPool } from './client';
+import { getPool } from './client.js';
 
 export class WaitlistDuplicateError extends Error {
   constructor(email: string) {

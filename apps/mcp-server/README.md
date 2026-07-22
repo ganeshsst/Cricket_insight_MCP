@@ -32,6 +32,16 @@ Set `MCP_TRANSPORT=stdio` or `MCP_TRANSPORT=http` to override.
 
 Each tool maps 1:1 to a Cricket API endpoint. See [cricket-api README](../cricket-api/README.md) for full path details.
 
+### Analytics
+
+| Tool | API path |
+|------|----------|
+| `query_player_rankings` | `GET /analytics/player-rankings` |
+| `query_player_vs_bowling` | `GET /analytics/player-vs-bowling` |
+| `query_player_performances` | `GET /analytics/player-performances` |
+
+Use these for find/rank, vs bowling-type weakness, and match-level proof (few tools, rich filters).
+
 ### Players
 
 | Tool | API path |
@@ -42,7 +52,9 @@ Each tool maps 1:1 to a Cricket API endpoint. See [cricket-api README](../cricke
 | `player_bowling_stats` | `GET /players/:sportmonksId/bowling-stats` |
 | `get_player_career` | `GET /players/:sportmonksId/career` |
 | `compare_players_by_name` | `GET /players/compare-by-name` |
+| `get_batter_bowler_matchup` | `GET /players/matchup-by-name` |
 | `get_player_stats_by_name` | `GET /players/by-name/stats` |
+| `player_dismissal_analysis` | `GET /players/by-name/dismissals` |
 
 ### Matches
 
@@ -82,8 +94,9 @@ Each tool maps 1:1 to a Cricket API endpoint. See [cricket-api README](../cricke
 |------|----------|
 | `get_venue` | `GET /venues/:venueId` |
 
-The MCP server exposes **25 tools** to Cursor and CricInsights chat. The Cricket
-API retains all 30 REST endpoints, including the five endpoints not exposed as
+The MCP server exposes **26 tools** to Cursor and CricInsights chat, including
+`player_dismissal_analysis` for data-grounded batting weakness profiles.
+The Cricket API retains all REST endpoints, including those not exposed as
 MCP tools. `get_match_coverage`, `get_season_coverage`, and `get_venue` remain
 available.
 

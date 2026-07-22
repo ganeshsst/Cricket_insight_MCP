@@ -11,26 +11,29 @@ import { z } from 'zod';
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../..');
 config({ path: join(root, '.env') });
 
-const apiBase = process.env.CRICKET_API_URL ?? 'http://localhost:3001';
-const port = Number(process.env.MCP_PORT ?? 3002);
+const apiBase = (process.env.CRICKET_API_URL ?? 'http://localhost:3001').replace(/\/+$/, '');
+const port = Number(process.env.MCP_PORT ?? process.env.PORT ?? 3002);
 
-/** Cursor/IDE hosts pipe stdin — use stdio even if .env defaults to http. */
+/**
+ * An explicit MCP_TRANSPORT always wins (e.g. hosted HTTP on Render/containers).
+ * When unset, auto-detect: Cursor/IDE hosts pipe stdin (no TTY) → stdio.
+ */
 function resolveTransportMode(): 'stdio' | 'http' {
-  if (!process.stdin.isTTY) {
-    return 'stdio';
+  const explicit = process.env.MCP_TRANSPORT?.toLowerCase();
+  if (explicit === 'stdio') return 'stdio';
+  if (explicit === 'http' || explicit === 'https') return 'http';
+  if (explicit) {
+    throw new Error(
+      `Unsupported MCP_TRANSPORT "${process.env.MCP_TRANSPORT}". Use "http" or "stdio".`,
+    );
   }
-  const mode = (process.env.MCP_TRANSPORT ?? 'http').toLowerCase();
-  if (mode === 'stdio') return 'stdio';
-  if (mode === 'http' || mode === 'https') return 'http';
-  throw new Error(
-    `Unsupported MCP_TRANSPORT "${process.env.MCP_TRANSPORT}". Use "http" or "stdio".`,
-  );
+  return process.stdin.isTTY ? 'http' : 'stdio';
 }
 
 const transportMode = resolveTransportMode();
 
 async function apiGet<T>(path: string): Promise<T> {
-  const response = await fetch(`${apiBase}${path}`);
+  const response = await fetch(`${apiBase}/${path.replace(/^\/+/, '')}`);
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`API ${response.status}: ${body}`);
@@ -160,6 +163,34 @@ server.tool(
 );
 
 server.tool(
+  'get_batter_bowler_matchup',
+  'True batter vs bowler head-to-head: dismissals and ball-level stats when available. Prefer batter+bowler names; or pass a+b to infer who is batter vs bowler.',
+  {
+    batter: z.string().optional().describe('Batter name e.g. Virat Kohli'),
+    bowler: z.string().optional().describe('Bowler name e.g. Jasprit Bumrah'),
+    a: z.string().optional().describe('Player A if roles not specified'),
+    b: z.string().optional().describe('Player B if roles not specified'),
+    format: z.string().optional(),
+    seasonId: z.number().int().optional(),
+    leagueId: z.number().int().optional(),
+  },
+  async ({ batter, bowler, a, b, format, seasonId, leagueId }) =>
+    jsonText(
+      await apiGet(
+        `/players/matchup-by-name${buildQuery({
+          batter,
+          bowler,
+          a,
+          b,
+          format,
+          seasonId,
+          leagueId,
+        })}`,
+      ),
+    ),
+);
+
+server.tool(
   'get_player_stats_by_name',
   'Resolve a player by name and return profile plus batting and bowling stats',
   {
@@ -177,20 +208,38 @@ server.tool(
 );
 
 server.tool(
+  'player_dismissal_analysis',
+  'Data-grounded batting weakness profile: how a player gets out (dismissal type, pace vs spin, bowling style, phase) from ingested scorecards',
+  {
+    q: z.string().describe('Player name e.g. Virat Kohli'),
+    format: z.string().optional(),
+    seasonId: z.number().int().optional(),
+    leagueId: z.number().int().optional(),
+  },
+  async ({ q, format, seasonId, leagueId }) =>
+    jsonText(
+      await apiGet(
+        `/players/by-name/dismissals${buildQuery({ q, format, seasonId, leagueId })}`,
+      ),
+    ),
+);
+
+server.tool(
   'list_matches',
-  'List cricket matches with optional filters',
+  'List cricket matches with optional filters. Prefer status=Finished|NS|Live over isLive (isLive is derived from status).',
   {
     leagueId: z.number().int().optional(),
     seasonId: z.number().int().optional(),
     teamId: z.number().int().optional(),
     format: z.string().optional(),
+    status: z.string().optional().describe('e.g. Finished, NS, Live'),
     limit: z.number().int().min(1).max(100).optional(),
     offset: z.number().int().min(0).optional(),
   },
-  async ({ leagueId, seasonId, teamId, format, limit, offset }) =>
+  async ({ leagueId, seasonId, teamId, format, status, limit, offset }) =>
     jsonText(
       await apiGet(
-        `/matches${buildQuery({ leagueId, seasonId, teamId, format, limit, offset })}`,
+        `/matches${buildQuery({ leagueId, seasonId, teamId, format, status, limit, offset })}`,
       ),
     ),
 );
@@ -206,13 +255,14 @@ server.tool(
     teamBId: z.number().int().optional(),
     type: z.string().optional().describe('e.g. final'),
     format: z.string().optional(),
+    status: z.string().optional().describe('e.g. Finished, NS, Live'),
     limit: z.number().int().min(1).max(100).optional(),
     offset: z.number().int().min(0).optional(),
   },
-  async ({ leagueId, seasonId, teamId, teamAId, teamBId, type, format, limit, offset }) =>
+  async ({ leagueId, seasonId, teamId, teamAId, teamBId, type, format, status, limit, offset }) =>
     jsonText(
       await apiGet(
-        `/matches/search${buildQuery({ leagueId, seasonId, teamId, teamAId, teamBId, type, format, limit, offset })}`,
+        `/matches/search${buildQuery({ leagueId, seasonId, teamId, teamAId, teamBId, type, format, status, limit, offset })}`,
       ),
     ),
 );
@@ -227,6 +277,54 @@ server.tool(
   },
   async ({ leagueId, seasonId, format }) =>
     jsonText(await apiGet(`/matches/final${buildQuery({ leagueId, seasonId, format })}`)),
+);
+
+server.tool(
+  'get_match_officials',
+  'Match officials: on-field umpires, TV umpire, and match referee. Use fixtureId for one match, or leagueId+seasonId for a season. groupBy=official returns a leaderboard by matches officiated.',
+  {
+    fixtureId: z.string().optional().describe('Fixture SportMonks id'),
+    leagueId: z.number().int().optional().describe('League SportMonks id e.g. 1 for IPL'),
+    seasonId: z.number().int().optional().describe('Season SportMonks id e.g. 1795 for IPL 2026'),
+    officialId: z.string().optional().describe('Filter to one official SportMonks id'),
+    officialName: z.string().optional().describe('Filter by official name fragment'),
+    role: z
+      .enum(['umpire', 'tv_umpire', 'referee'])
+      .optional()
+      .describe('umpire = first + second on-field umpires'),
+    groupBy: z
+      .enum(['fixture', 'official'])
+      .optional()
+      .describe('fixture = per-match rows; official = leaderboard'),
+    limit: z.number().int().min(1).max(200).optional(),
+    offset: z.number().int().min(0).optional(),
+  },
+  async ({
+    fixtureId,
+    leagueId,
+    seasonId,
+    officialId,
+    officialName,
+    role,
+    groupBy,
+    limit,
+    offset,
+  }) =>
+    jsonText(
+      await apiGet(
+        `/matches/officials${buildQuery({
+          fixtureId,
+          leagueId,
+          seasonId,
+          officialId,
+          officialName,
+          role,
+          groupBy,
+          limit,
+          offset,
+        })}`,
+      ),
+    ),
 );
 
 server.tool(
@@ -246,9 +344,102 @@ server.tool(
 
 server.tool(
   'get_match_coverage',
-  'Scorecard row coverage for a fixture',
+  'Scorecard + ball/over row coverage for a fixture',
   { fixtureId: z.string().describe('Fixture SportMonks id') },
   async ({ fixtureId }) => jsonText(await apiGet(`/matches/${fixtureId}/coverage`)),
+);
+
+server.tool(
+  'get_match_overs',
+  'Over-by-over runs and wickets for a match (use for Manhattan charts)',
+  { fixtureId: z.string().describe('Fixture SportMonks id') },
+  async ({ fixtureId }) => jsonText(await apiGet(`/matches/${fixtureId}/overs`)),
+);
+
+server.tool(
+  'get_match_partnerships',
+  'Batting partnerships derived from ball-by-ball striker/non-striker pairs',
+  { fixtureId: z.string().describe('Fixture SportMonks id') },
+  async ({ fixtureId }) =>
+    jsonText(await apiGet(`/matches/${fixtureId}/partnerships`)),
+);
+
+server.tool(
+  'get_match_balls',
+  'Paginated ball-by-ball events with score outcomes (event feed, not full commentary text)',
+  {
+    fixtureId: z.string().describe('Fixture SportMonks id'),
+    scoreboard: z.string().optional().describe('e.g. S1'),
+    limit: z.number().int().min(1).max(600).optional().describe('Default 120'),
+    offset: z.number().int().min(0).optional(),
+  },
+  async ({ fixtureId, scoreboard, limit, offset }) =>
+    jsonText(
+      await apiGet(
+        `/matches/${fixtureId}/balls${buildQuery({ scoreboard, limit, offset })}`,
+      ),
+    ),
+);
+
+server.tool(
+  'get_player_matches',
+  'Fixture-level batting/bowling match log for a player (aggregated per fixture)',
+  {
+    sportmonksId: z.string(),
+    format: z.string().optional(),
+    seasonId: z.number().int().optional(),
+    leagueId: z.number().int().optional(),
+    limit: z.number().int().min(1).max(100).optional(),
+  },
+  async ({ sportmonksId, format, seasonId, leagueId, limit }) =>
+    jsonText(
+      await apiGet(
+        `/players/${sportmonksId}/matches${buildQuery({ format, seasonId, leagueId, limit })}`,
+      ),
+    ),
+);
+
+server.tool(
+  'get_season_awards',
+  'Orange Cap and Purple Cap for a league season',
+  {
+    leagueId: z.string(),
+    seasonId: z.string(),
+    format: z.string().optional().describe('e.g. T20 for IPL'),
+  },
+  async ({ leagueId, seasonId, format }) =>
+    jsonText(
+      await apiGet(
+        `/leagues/${leagueId}/seasons/${seasonId}/awards${buildQuery({ format })}`,
+      ),
+    ),
+);
+
+server.tool(
+  'get_season_playoffs',
+  'Inferred playoff matches for a league season (heuristic from late-season fixtures)',
+  {
+    leagueId: z.string(),
+    seasonId: z.string(),
+  },
+  async ({ leagueId, seasonId }) =>
+    jsonText(await apiGet(`/leagues/${leagueId}/seasons/${seasonId}/playoffs`)),
+);
+
+server.tool(
+  'get_team_season_stats',
+  'Team win/loss and runs for/against in a season',
+  {
+    teamId: z.string(),
+    seasonId: z.number().int(),
+    leagueId: z.number().int().optional(),
+  },
+  async ({ teamId, seasonId, leagueId }) =>
+    jsonText(
+      await apiGet(
+        `/teams/${teamId}/season-stats${buildQuery({ seasonId, leagueId })}`,
+      ),
+    ),
 );
 
 server.tool(
@@ -275,7 +466,7 @@ server.tool(
 
 server.tool(
   'get_season_standings',
-  'Points table / standings for a league season',
+  'Points table / standings for a league season. recentForm is last 5 finished matches including playoffs (W/L/NR, oldest→newest; rightmost = most recent).',
   {
     leagueId: z.string(),
     seasonId: z.string(),
@@ -377,6 +568,93 @@ server.tool(
   'Get venue usage summary',
   { venueId: z.string().describe('Venue SportMonks id') },
   async ({ venueId }) => jsonText(await apiGet(`/venues/${venueId}`)),
+);
+
+server.tool(
+  'query_player_rankings',
+  'Rank players by runs/wickets/average/strike_rate/economy. Filter by teamName (e.g. India), format, leagueId, seasonId, window=career|season|last_n_matches. Use for "most runs for X in recent T20s".',
+  {
+    metric: z
+      .enum(['runs', 'wickets', 'average', 'strike_rate', 'economy', 'dismissals'])
+      .optional()
+      .describe('Default runs'),
+    teamName: z.string().optional().describe('e.g. India'),
+    teamId: z.number().int().optional(),
+    leagueId: z.number().int().optional().describe('IPL = 1'),
+    seasonId: z.number().int().optional(),
+    format: z.string().optional().describe('T20, T20I, ODI, Test'),
+    window: z
+      .enum(['season', 'career', 'last_n_matches'])
+      .optional()
+      .describe('Default career; season requires seasonId'),
+    lastN: z.number().int().min(1).max(100).optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+    minInnings: z.number().int().min(1).optional(),
+  },
+  async (args) =>
+    jsonText(await apiGet(`/analytics/player-rankings${buildQuery(args)}`)),
+);
+
+server.tool(
+  'query_player_vs_bowling',
+  'Batter vs bowling type (pace/spin/left_arm_pace/right_arm_pace/left_arm_spin/right_arm_spin). Returns dismissals, ball stats, struggle flag with defined rules, and recent fail innings. Use after rankings to prove weakness.',
+  {
+    q: z.string().optional().describe('Player name e.g. Rohit Sharma'),
+    playerId: z.string().optional(),
+    vs: z
+      .enum([
+        'pace',
+        'spin',
+        'left_arm_pace',
+        'right_arm_pace',
+        'left_arm_spin',
+        'right_arm_spin',
+        'any',
+      ])
+      .optional()
+      .describe('Default left_arm_pace'),
+    leagueId: z.number().int().optional(),
+    seasonId: z.number().int().optional(),
+    format: z.string().optional(),
+    teamName: z.string().optional(),
+    teamId: z.number().int().optional(),
+    include: z
+      .string()
+      .optional()
+      .describe('Comma list: dismissals,ballStats,recentFailInnings'),
+  },
+  async (args) =>
+    jsonText(await apiGet(`/analytics/player-vs-bowling${buildQuery(args)}`)),
+);
+
+server.tool(
+  'query_player_performances',
+  'Fixture-level best/worst/recent batting or bowling performances for a named player. Optional vsBowlingType filters batting dismissals. Use for match-level proof; copy fixtureId into get_match_scorecard.',
+  {
+    q: z.string().optional().describe('Player name'),
+    playerId: z.string().optional(),
+    kind: z.enum(['batting', 'bowling']).optional(),
+    sort: z.enum(['best', 'worst', 'recent']).optional(),
+    vsBowlingType: z
+      .enum([
+        'pace',
+        'spin',
+        'left_arm_pace',
+        'right_arm_pace',
+        'left_arm_spin',
+        'right_arm_spin',
+        'any',
+      ])
+      .optional(),
+    leagueId: z.number().int().optional(),
+    seasonId: z.number().int().optional(),
+    format: z.string().optional(),
+    teamName: z.string().optional(),
+    teamId: z.number().int().optional(),
+    limit: z.number().int().min(1).max(50).optional(),
+  },
+  async (args) =>
+    jsonText(await apiGet(`/analytics/player-performances${buildQuery(args)}`)),
 );
 
 return server;

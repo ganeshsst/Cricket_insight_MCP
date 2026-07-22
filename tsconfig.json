@@ -20,6 +20,9 @@
     },
     {
       "path": "./apps/cricket-api"
+    },
+    {
+      "path": "./apps/cricinsights-chat"
     }
   ]
 }

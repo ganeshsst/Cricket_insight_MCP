@@ -61,11 +61,13 @@ export class TeamsService {
     const { rows } = await this.db.query<{
       player_id: string;
       player_name: string | null;
+      image_path: string | null;
       battingstyle: string | null;
       bowlingstyle: string | null;
     }>(
       `SELECT tsm.player_id::text,
               p.fullname AS player_name,
+              p.image_path,
               p.battingstyle,
               p.bowlingstyle
        FROM master.team_squad_members tsm
@@ -78,6 +80,7 @@ export class TeamsService {
     const members: SquadMemberDto[] = rows.map((row: (typeof rows)[number]) => ({
       playerId: row.player_id,
       playerName: row.player_name,
+      imagePath: row.image_path,
       battingstyle: row.battingstyle,
       bowlingstyle: row.bowlingstyle,
     }));
