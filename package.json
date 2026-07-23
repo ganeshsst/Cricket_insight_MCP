@@ -18,6 +18,7 @@
     "db:ps": "docker compose ps",
     "dev:web": "nx dev cricinsights",
     "dev:chat": "nx dev cricinsights-chat",
+    "dev:chatbot": "nx dev cricinsights-chatbot",
     "dev:api": "nx run cricket-api:dev",
     "dev:mcp": "nx run mcp-server:dev"
   },

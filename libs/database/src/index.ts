@@ -4,7 +4,7 @@ export {
   databaseNameForEnv,
   databaseUrlFromEnv,
 } from './env.js';
-export { getPool, closePool } from './client.js';
+export { getPool, getUsersPool, closePool } from './client.js';
 export {
   addToWaitlist,
   isValidEmail,
