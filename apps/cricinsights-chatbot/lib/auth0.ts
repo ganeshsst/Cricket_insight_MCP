@@ -1,12 +1,16 @@
 import { Auth0Client } from '@auth0/nextjs-auth0/server';
 import { NextResponse } from 'next/server';
 
+const appBaseUrl = process.env.APP_BASE_URL ?? 'http://localhost:3004';
+/** Secure cookies only on HTTPS (Vercel). Local http://localhost stays non-secure. */
+const cookieSecure = appBaseUrl.startsWith('https://');
+
 export const auth0 = new Auth0Client({
   domain: process.env.AUTH0_DOMAIN,
   clientId: process.env.AUTH0_CLIENT_ID,
   clientSecret: process.env.AUTH0_CLIENT_SECRET,
   secret: process.env.AUTH0_SECRET,
-  appBaseUrl: process.env.APP_BASE_URL ?? 'http://localhost:3004',
+  appBaseUrl,
   // Fail login faster when Auth0 is unreachable (was hanging page loads).
   httpTimeout: 8000,
   authorizationParameters: {
@@ -21,17 +25,17 @@ export const auth0 = new Auth0Client({
     cookie: {
       path: '/',
       sameSite: 'lax',
-      secure: false,
+      secure: cookieSecure,
     },
   },
   transactionCookie: {
     path: '/',
     sameSite: 'lax',
-    secure: false,
+    secure: cookieSecure,
     maxAge: 3600,
   },
   async onCallback(error, context, session) {
-    const base = process.env.APP_BASE_URL ?? 'http://localhost:3004';
+    const base = appBaseUrl;
 
     if (error) {
       const cause = (error as { cause?: { code?: string; message?: string } })
