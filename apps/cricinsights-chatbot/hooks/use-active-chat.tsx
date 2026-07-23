@@ -25,8 +25,9 @@ import { useAutoResume } from "@/hooks/use-auto-resume";
 import { DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import type { Vote } from "@/lib/db/schema";
 import { ChatbotError } from "@/lib/errors";
-import type { ChatMessage } from "@/lib/types";
+import type { ChatMessage, CustomUIDataTypes, WaitingStatusData } from "@/lib/types";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
+import type { DataUIPart } from "ai";
 
 type ActiveChatContextValue = {
   chatId: string;
@@ -112,10 +113,12 @@ export function ActiveChatProvider({ children }: { children: ReactNode }) {
     messages: initialMessages,
     onData: (dataPart) => {
       if (dataPart.type === "data-waiting-status") {
-        setWaitingStatus(dataPart.data);
+        setWaitingStatus(dataPart.data as WaitingStatusData);
         return;
       }
-      setDataStream((ds) => (ds ? [...ds, dataPart] : []));
+      setDataStream((ds) =>
+        ds ? [...ds, dataPart as DataUIPart<CustomUIDataTypes>] : []
+      );
     },
     onError: (error) => {
       if (error.message?.includes("AI Gateway requires a valid credit card")) {
