@@ -9,6 +9,11 @@ import { LeaguesService } from '../leagues/leagues.service.js';
 import { PlayersService } from '../players/players.service.js';
 import type {
   AnalyticsScopeDto,
+  MultiDismissalEventDto,
+  MultiDismissalMode,
+  MultiDismissalRowDto,
+  MultiDismissalsDto,
+  MultiDismissalsQueryDto,
   PerformanceRowDto,
   PerformanceSort,
   PlayerPerformancesDto,
@@ -353,6 +358,312 @@ export class AnalyticsService {
         rows.length === 0
           ? 'No fixture-level performances for this filter scope.'
           : 'Fixture-level rows from ingested scorecards. Use fixtureId with get_match_scorecard for full detail.',
+    };
+  }
+
+  /**
+   * Same-match multi-dismissals from scorecard batting rows (super overs / multi-innings).
+   * Excludes not out / retired hurt / absent. Run-outs without bowling_player_id still count
+   * for batter_multi_out but are excluded from bowler-grouped modes.
+   */
+  async getMultiDismissals(
+    query: MultiDismissalsQueryDto,
+  ): Promise<MultiDismissalsDto> {
+    const mode: MultiDismissalMode = query.mode ?? 'batter_multi_out';
+    const minDismissals = query.minDismissals ?? 2;
+    const limit = query.limit ?? 20;
+    const sameBowler =
+      mode === 'bowler_multi_wicket' ||
+      mode === 'pair_in_match' ||
+      Boolean(query.sameBowler);
+
+    let batterProfile: {
+      sportmonksId: string;
+      name: string | null;
+      imagePath: string | null;
+    } | null = null;
+    let bowlerProfile: {
+      sportmonksId: string;
+      name: string | null;
+      imagePath: string | null;
+    } | null = null;
+
+    if (query.batter?.trim() || query.batterId?.trim()) {
+      batterProfile = await this.resolvePlayer(
+        query.batter,
+        query.batterId,
+        query.leagueId,
+      );
+    }
+    if (query.bowler?.trim() || query.bowlerId?.trim()) {
+      bowlerProfile = await this.resolvePlayer(
+        query.bowler,
+        query.bowlerId,
+        query.leagueId,
+      );
+    }
+
+    if (mode === 'pair_in_match') {
+      if (!batterProfile || !bowlerProfile) {
+        throw new BadRequestException(
+          'pair_in_match requires batter and bowler (names or ids)',
+        );
+      }
+    }
+
+    const filters = {
+      format: query.format,
+      leagueId: query.leagueId,
+      seasonId: query.seasonId,
+    };
+    const scope = await this.buildScope(filters, null, { metric: mode });
+
+    const params: unknown[] = [];
+    const conditions: string[] = [
+      'fb.wicket_outcome_id IS NOT NULL',
+      `LOWER(TRIM(COALESCE(so.name, ''))) NOT IN ('not out', 'retired hurt', 'absent')`,
+    ];
+
+    if (filters.format) {
+      params.push(filters.format);
+      conditions.push(`ff.match_format = $${params.length}`);
+    }
+    if (filters.leagueId) {
+      params.push(filters.leagueId);
+      conditions.push(`ff.league_id = $${params.length}::bigint`);
+    }
+    if (filters.seasonId) {
+      params.push(filters.seasonId);
+      conditions.push(`ff.season_id = $${params.length}::bigint`);
+    }
+    if (batterProfile) {
+      params.push(batterProfile.sportmonksId);
+      conditions.push(`fb.player_id = $${params.length}::bigint`);
+    }
+    if (bowlerProfile) {
+      params.push(bowlerProfile.sportmonksId);
+      conditions.push(`fb.bowling_player_id = $${params.length}::bigint`);
+    }
+    if (sameBowler) {
+      conditions.push('fb.bowling_player_id IS NOT NULL');
+    }
+
+    params.push(minDismissals);
+    const minParam = `$${params.length}`;
+    params.push(limit);
+    const limitParam = `$${params.length}`;
+
+    const groupCols = sameBowler
+      ? 'b.fixture_id, b.batter_id, b.bowler_id'
+      : 'b.fixture_id, b.batter_id';
+
+    const { rows: groupRows } = await this.db.query<{
+      fixture_id: string;
+      batter_id: string;
+      bowler_id: string | null;
+      dismissal_count: string;
+      date_key: string | null;
+      local_team: string | null;
+      visitor_team: string | null;
+      batter_name: string | null;
+      batter_image: string | null;
+      bowler_name: string | null;
+    }>(
+      `WITH base AS (
+         SELECT fb.fixture_id,
+                ff.date_key,
+                lt.name AS local_team,
+                vt.name AS visitor_team,
+                fb.player_id AS batter_id,
+                bat.fullname AS batter_name,
+                bat.image_path AS batter_image,
+                fb.bowling_player_id AS bowler_id,
+                bowl.fullname AS bowler_name,
+                fb.scoreboard,
+                so.name AS outcome,
+                fb.runs_scored,
+                fb.balls_faced,
+                fb.id AS batting_row_id
+         FROM matches.fixture_batting fb
+         JOIN gold.fact_fixture ff ON ff.fixture_id = fb.fixture_id
+         JOIN master.score_outcomes so ON so.sportmonks_id = fb.wicket_outcome_id
+         LEFT JOIN master.players bat ON bat.sportmonks_id = fb.player_id
+         LEFT JOIN master.players bowl ON bowl.sportmonks_id = fb.bowling_player_id
+         LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
+         LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
+         WHERE ${conditions.join(' AND ')}
+       ),
+       grouped AS (
+         SELECT ${groupCols},
+                COUNT(*)::int AS dismissal_count,
+                MAX(b.date_key) AS date_key,
+                MAX(b.local_team) AS local_team,
+                MAX(b.visitor_team) AS visitor_team,
+                MAX(b.batter_name) AS batter_name,
+                MAX(b.batter_image) AS batter_image,
+                ${sameBowler ? 'MAX(b.bowler_name)' : 'NULL::text'} AS bowler_name
+         FROM base b
+         GROUP BY ${groupCols}
+         HAVING COUNT(*) >= ${minParam}
+         ORDER BY MAX(b.date_key) DESC NULLS LAST, COUNT(*) DESC
+         LIMIT ${limitParam}
+       )
+       SELECT g.fixture_id::text,
+              g.batter_id::text,
+              ${sameBowler ? 'g.bowler_id::text' : 'NULL::text'} AS bowler_id,
+              g.dismissal_count::text,
+              g.date_key::text,
+              g.local_team,
+              g.visitor_team,
+              g.batter_name,
+              g.batter_image,
+              g.bowler_name
+       FROM grouped g`,
+      params,
+    );
+
+    if (groupRows.length === 0) {
+      return {
+        scope,
+        mode,
+        minDismissals,
+        sameBowler,
+        batter: batterProfile
+          ? {
+              playerId: batterProfile.sportmonksId,
+              name: batterProfile.name,
+              imagePath: batterProfile.imagePath,
+            }
+          : null,
+        bowler: bowlerProfile
+          ? {
+              playerId: bowlerProfile.sportmonksId,
+              name: bowlerProfile.name,
+              imagePath: bowlerProfile.imagePath,
+            }
+          : null,
+        rows: [],
+        note:
+          'No same-match multi-dismissal cases found for this filter scope in ingested scorecards. Coverage is partial.',
+      };
+    }
+
+    // Fetch dismissal event rows for the matched groups
+    const detailParams: unknown[] = [];
+    const detailConditions = [
+      'fb.wicket_outcome_id IS NOT NULL',
+      `LOWER(TRIM(COALESCE(so.name, ''))) NOT IN ('not out', 'retired hurt', 'absent')`,
+    ];
+
+    const fixtureIds = [...new Set(groupRows.map((r) => r.fixture_id))];
+    detailParams.push(fixtureIds);
+    detailConditions.push(`fb.fixture_id = ANY($${detailParams.length}::bigint[])`);
+
+    const batterIds = [...new Set(groupRows.map((r) => r.batter_id))];
+    detailParams.push(batterIds);
+    detailConditions.push(`fb.player_id = ANY($${detailParams.length}::bigint[])`);
+
+    if (sameBowler) {
+      const bowlerIds = [
+        ...new Set(
+          groupRows.map((r) => r.bowler_id).filter((id): id is string => id != null),
+        ),
+      ];
+      detailParams.push(bowlerIds);
+      detailConditions.push(
+        `fb.bowling_player_id = ANY($${detailParams.length}::bigint[])`,
+      );
+    }
+
+    const { rows: detailRows } = await this.db.query<{
+      fixture_id: string;
+      batter_id: string;
+      bowler_id: string | null;
+      scoreboard: string | null;
+      outcome: string | null;
+      runs_scored: number | null;
+      balls_faced: number | null;
+      bowler_name: string | null;
+      batting_row_id: string;
+    }>(
+      `SELECT fb.fixture_id::text,
+              fb.player_id::text AS batter_id,
+              fb.bowling_player_id::text AS bowler_id,
+              fb.scoreboard,
+              so.name AS outcome,
+              fb.runs_scored,
+              fb.balls_faced,
+              bowl.fullname AS bowler_name,
+              fb.id::text AS batting_row_id
+       FROM matches.fixture_batting fb
+       JOIN master.score_outcomes so ON so.sportmonks_id = fb.wicket_outcome_id
+       LEFT JOIN master.players bowl ON bowl.sportmonks_id = fb.bowling_player_id
+       WHERE ${detailConditions.join(' AND ')}
+       ORDER BY fb.fixture_id, fb.scoreboard NULLS LAST, fb.sort_order NULLS LAST, fb.id`,
+      detailParams,
+    );
+
+    const eventsByKey = new Map<string, MultiDismissalEventDto[]>();
+    for (const d of detailRows) {
+      const key = sameBowler
+        ? `${d.fixture_id}|${d.batter_id}|${d.bowler_id ?? ''}`
+        : `${d.fixture_id}|${d.batter_id}`;
+      const list = eventsByKey.get(key) ?? [];
+      list.push({
+        scoreboard: d.scoreboard,
+        outcome: d.outcome,
+        runs: d.runs_scored,
+        balls: d.balls_faced,
+        bowlerId: d.bowler_id,
+        bowlerName: d.bowler_name,
+      });
+      eventsByKey.set(key, list);
+    }
+
+    const rows: MultiDismissalRowDto[] = groupRows.map((g) => {
+      const key = sameBowler
+        ? `${g.fixture_id}|${g.batter_id}|${g.bowler_id ?? ''}`
+        : `${g.fixture_id}|${g.batter_id}`;
+      const dismissals = eventsByKey.get(key) ?? [];
+      return {
+        fixtureId: g.fixture_id,
+        date: g.date_key,
+        matchTitle:
+          g.local_team && g.visitor_team
+            ? `${g.local_team} vs ${g.visitor_team}`
+            : null,
+        batterId: g.batter_id,
+        batterName: g.batter_name,
+        batterImagePath: g.batter_image,
+        bowlerId: g.bowler_id,
+        bowlerName: g.bowler_name,
+        dismissalCount: Number(g.dismissal_count),
+        dismissals,
+      };
+    });
+
+    return {
+      scope,
+      mode,
+      minDismissals,
+      sameBowler,
+      batter: batterProfile
+        ? {
+            playerId: batterProfile.sportmonksId,
+            name: batterProfile.name,
+            imagePath: batterProfile.imagePath,
+          }
+        : null,
+      bowler: bowlerProfile
+        ? {
+            playerId: bowlerProfile.sportmonksId,
+            name: bowlerProfile.name,
+            imagePath: bowlerProfile.imagePath,
+          }
+        : null,
+      rows,
+      note:
+        'Derived from ingested scorecard batting rows (includes super overs / extra scoreboards when present). Coverage is partial — use fixtureId with get_match_scorecard for proof.',
     };
   }
 

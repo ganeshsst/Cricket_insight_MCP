@@ -1,6 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 
 export const RANKING_METRICS = [
   'runs',
@@ -31,6 +39,13 @@ export type PerformanceKind = (typeof PERFORMANCE_KINDS)[number];
 
 export const PERFORMANCE_SORTS = ['best', 'worst', 'recent'] as const;
 export type PerformanceSort = (typeof PERFORMANCE_SORTS)[number];
+
+export const MULTI_DISMISSAL_MODES = [
+  'batter_multi_out',
+  'bowler_multi_wicket',
+  'pair_in_match',
+] as const;
+export type MultiDismissalMode = (typeof MULTI_DISMISSAL_MODES)[number];
 
 export class PlayerRankingsQueryDto {
   @ApiPropertyOptional({ enum: RANKING_METRICS, default: 'runs' })
@@ -317,5 +332,120 @@ export class PlayerPerformancesDto {
   kind!: string;
   sort!: string;
   rows!: PerformanceRowDto[];
+  note?: string;
+}
+
+export class MultiDismissalsQueryDto {
+  @ApiPropertyOptional({
+    enum: MULTI_DISMISSAL_MODES,
+    default: 'batter_multi_out',
+    description:
+      'batter_multi_out = same batter dismissed 2+ times in one match; bowler_multi_wicket = same bowler dismissed same batter 2+ times in one match; pair_in_match = require both batter + bowler',
+  })
+  @IsOptional()
+  @IsIn(MULTI_DISMISSAL_MODES)
+  mode?: MultiDismissalMode = 'batter_multi_out';
+
+  @ApiPropertyOptional({ example: 'Virat Kohli' })
+  @IsOptional()
+  @IsString()
+  batter?: string;
+
+  @IsOptional()
+  @IsString()
+  batterId?: string;
+
+  @ApiPropertyOptional({ example: 'Jasprit Bumrah' })
+  @IsOptional()
+  @IsString()
+  bowler?: string;
+
+  @IsOptional()
+  @IsString()
+  bowlerId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'When mode=batter_multi_out, only keep cases where the same credited bowler appears on 2+ dismissals',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === true || value === 'true' || value === '1') return true;
+    if (value === false || value === 'false' || value === '0') return false;
+    return value;
+  })
+  @IsBoolean()
+  sameBowler?: boolean;
+
+  @ApiPropertyOptional({ default: 2 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(2)
+  @Max(10)
+  minDismissals?: number = 2;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  leagueId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  seasonId?: number;
+
+  @IsOptional()
+  @IsString()
+  format?: string;
+
+  @ApiPropertyOptional({ default: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit?: number = 20;
+}
+
+export class MultiDismissalEventDto {
+  scoreboard!: string | null;
+  outcome!: string | null;
+  runs!: number | null;
+  balls!: number | null;
+  bowlerId!: string | null;
+  bowlerName!: string | null;
+}
+
+export class MultiDismissalRowDto {
+  fixtureId!: string;
+  date!: string | null;
+  matchTitle!: string | null;
+  batterId!: string;
+  batterName!: string | null;
+  batterImagePath!: string | null;
+  /** Set when grouping by bowler (bowler_multi_wicket / pair / sameBowler). */
+  bowlerId!: string | null;
+  bowlerName!: string | null;
+  dismissalCount!: number;
+  dismissals!: MultiDismissalEventDto[];
+}
+
+export class MultiDismissalsDto {
+  scope!: AnalyticsScopeDto;
+  mode!: string;
+  minDismissals!: number;
+  sameBowler!: boolean;
+  batter?: {
+    playerId: string;
+    name: string | null;
+    imagePath: string | null;
+  } | null;
+  bowler?: {
+    playerId: string;
+    name: string | null;
+    imagePath: string | null;
+  } | null;
+  rows!: MultiDismissalRowDto[];
   note?: string;
 }

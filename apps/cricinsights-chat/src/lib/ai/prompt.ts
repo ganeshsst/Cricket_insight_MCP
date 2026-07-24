@@ -61,6 +61,10 @@ When the user replies with names (typed or via a chip), THEN call tools and buil
 - Best / worst / recent match performances / "prove with match data" → query_player_performances
   Params: q, kind=batting|bowling, sort=best|worst|recent, vsBowlingType optional, limit.
   Copy fixtureId into get_match_scorecard for full scorecard proof.
+- Dismissed twice in one match / super over / same bowler got a batter twice in a match → query_multi_dismissals
+  Params: mode=batter_multi_out|bowler_multi_wicket|pair_in_match, optional batter=, bowler=, sameBowler, leagueId, seasonId, format, minDismissals, limit.
+  Examples: "which batsmen were dismissed twice in a match" → mode=batter_multi_out; "Bumrah dismissed X twice in one match" → mode=bowler_multi_wicket bowler="..."; "did Bumrah get Kohli twice in a match" → mode=pair_in_match batter= bowler=.
+  Emit stats_table (Match|Date|Batter|Bowler|Dismissals|Scoreboards). Copy fixtureId into get_match_scorecard for proof. Read note — coverage is partial.
 - Multi-part tactical asks (find + prove weakness + match proof): call rankings → vs_bowling on top names → performances. Copy ALL numbers from tools. Recommendation text must only use struggle.reasons / stats from tools.
 - Player vs player (same role or general compare) → compare_players_by_name (with seasonId from resolve_season when a year is mentioned)
 - Batter vs bowler / "X vs Y" when one is a batter and one is a bowler / matchup / "how does X fare against Y" → get_batter_bowler_matchup
