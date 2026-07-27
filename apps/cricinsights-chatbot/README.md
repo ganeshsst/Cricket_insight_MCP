@@ -36,7 +36,7 @@ AUTH0_SECRET=...
 AWS_* / BEDROCK_MODEL_ID=...
 ```
 
-Root `cricket-ai/.env` needs `USER_DATABASE_NAME=users` and preferably `USERS_DATABASE_URL` with a **read/write** role for inserts into `app_profiles` / `chats` / `messages`.
+Root `cricket-ai/.env` needs `USER_DATABASE_NAME=app` and preferably `USERS_DATABASE_URL` with a **read/write** role for inserts into `"user".app_profiles` / `chats` / `messages` (`auth0_user_id` + UUID FKs).
 
 ## Run
 

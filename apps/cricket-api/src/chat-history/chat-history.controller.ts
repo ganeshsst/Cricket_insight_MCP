@@ -20,10 +20,14 @@ export class ChatHistoryController {
   ) {}
 
   @Put('profiles')
-  @ApiOperation({ summary: 'Upsert app profile keyed by Auth0 sub' })
+  @ApiOperation({
+    summary:
+      'Upsert app profile by Auth0 sub (stored as auth0_user_id; returns internal id + userId)',
+  })
   upsertProfile(
     @Body()
     body: {
+      /** Auth0 `sub` */
       userId: string;
       email?: string;
       displayName?: string;
@@ -40,13 +44,17 @@ export class ChatHistoryController {
   }
 
   @Get('chats')
-  @ApiOperation({ summary: 'List chats for a user' })
+  @ApiOperation({
+    summary: 'List chats for a user (userId = Auth0 sub)',
+  })
   listChats(@Query('userId') userId: string) {
     return this.chatHistory.listChats(userId);
   }
 
   @Post('chats')
-  @ApiOperation({ summary: 'Create a chat' })
+  @ApiOperation({
+    summary: 'Create a chat (userId = Auth0 sub → app_profiles.id FK)',
+  })
   createChat(
     @Body()
     body: { userId: string; title?: string; visibility?: 'private' | 'public' },
@@ -55,7 +63,7 @@ export class ChatHistoryController {
   }
 
   @Get('chats/:chatId')
-  @ApiOperation({ summary: 'Get chat + messages' })
+  @ApiOperation({ summary: 'Get chat + messages (userId = Auth0 sub)' })
   getChat(
     @Param('chatId') chatId: string,
     @Query('userId') userId: string,
