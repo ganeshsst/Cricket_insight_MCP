@@ -39,8 +39,9 @@ Each tool maps 1:1 to a Cricket API endpoint. See [cricket-api README](../cricke
 | `query_player_rankings` | `GET /analytics/player-rankings` |
 | `query_player_vs_bowling` | `GET /analytics/player-vs-bowling` |
 | `query_player_performances` | `GET /analytics/player-performances` |
+| `query_multi_dismissals` | `GET /analytics/multi-dismissals` |
 
-Use these for find/rank, vs bowling-type weakness, and match-level proof (few tools, rich filters).
+Use these for find/rank, vs bowling-type weakness, match-level proof, and same-match multi-dismissals (few tools, rich filters).
 
 ### Players
 

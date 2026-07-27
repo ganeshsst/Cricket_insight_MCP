@@ -2,6 +2,8 @@ import { Controller, Get, Inject, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AnalyticsService } from './analytics.service.js';
 import {
+  MultiDismissalsDto,
+  MultiDismissalsQueryDto,
   PlayerPerformancesDto,
   PlayerPerformancesQueryDto,
   PlayerRankingsDto,
@@ -45,5 +47,15 @@ export class AnalyticsController {
   @ApiOkResponse({ type: PlayerPerformancesDto })
   playerPerformances(@Query() query: PlayerPerformancesQueryDto) {
     return this.analyticsService.getPlayerPerformances(query);
+  }
+
+  @Get('multi-dismissals')
+  @ApiOperation({
+    summary:
+      'Same-match multi-dismissals: batter out 2+ times, or same bowler dismissing same batter 2+ times (super over / multi-innings)',
+  })
+  @ApiOkResponse({ type: MultiDismissalsDto })
+  multiDismissals(@Query() query: MultiDismissalsQueryDto) {
+    return this.analyticsService.getMultiDismissals(query);
   }
 }

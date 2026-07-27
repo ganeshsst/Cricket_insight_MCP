@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@ai-sdk/amazon-bedrock": "^5.0.14",
+    "@auth0/nextjs-auth0": "~4.25.0",
     "@aws-sdk/client-bedrock-runtime": "^3.1083.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ai": "^7.0.18",

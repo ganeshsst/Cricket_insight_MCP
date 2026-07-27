@@ -992,7 +992,7 @@ export class PlayersService {
 
     const { rows: dismissalRows } = await this.db.query<{
       fixture_id: string;
-      starting_at: string | null;
+      date_key: string | null;
       local_team: string | null;
       visitor_team: string | null;
       outcome: string | null;
@@ -1000,7 +1000,7 @@ export class PlayersService {
       balls_faced: number | null;
     }>(
       `SELECT fb.fixture_id::text,
-              ff.starting_at::text,
+              ff.date_key::text,
               lt.name AS local_team,
               vt.name AS visitor_team,
               so.name AS outcome,
@@ -1012,7 +1012,7 @@ export class PlayersService {
        LEFT JOIN master.teams lt ON lt.sportmonks_id = ff.localteam_id
        LEFT JOIN master.teams vt ON vt.sportmonks_id = ff.visitorteam_id
        WHERE ${conditions.join(' AND ')}
-       ORDER BY ff.starting_at DESC NULLS LAST
+       ORDER BY ff.date_key DESC NULLS LAST
        LIMIT 25`,
       params,
     );
@@ -1029,7 +1029,7 @@ export class PlayersService {
       typeCounts.set(outcome, (typeCounts.get(outcome) ?? 0) + 1);
       recentDismissals.push({
         fixtureId: row.fixture_id,
-        date: row.starting_at,
+        date: row.date_key,
         matchTitle:
           row.local_team && row.visitor_team
             ? `${row.local_team} vs ${row.visitor_team}`

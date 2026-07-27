@@ -42,7 +42,7 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 function buildQuery(
-  params: Record<string, string | number | undefined | null>,
+  params: Record<string, string | number | boolean | undefined | null>,
 ): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -655,6 +655,34 @@ server.tool(
   },
   async (args) =>
     jsonText(await apiGet(`/analytics/player-performances${buildQuery(args)}`)),
+);
+
+server.tool(
+  'query_multi_dismissals',
+  'Same-match multi-dismissals from scorecards (super over / multi-innings). mode=batter_multi_out (batter out 2+ times in one match), bowler_multi_wicket (same bowler dismisses same batter 2+ times), pair_in_match (requires batter+bowler). Optional batter/bowler names, leagueId, seasonId, format, sameBowler, minDismissals. Copy fixtureId into get_match_scorecard for proof. Render as stats_table.',
+  {
+    mode: z
+      .enum(['batter_multi_out', 'bowler_multi_wicket', 'pair_in_match'])
+      .optional()
+      .describe('Default batter_multi_out'),
+    batter: z.string().optional().describe('Batter name e.g. Virat Kohli'),
+    batterId: z.string().optional(),
+    bowler: z.string().optional().describe('Bowler name e.g. Jasprit Bumrah'),
+    bowlerId: z.string().optional(),
+    sameBowler: z
+      .boolean()
+      .optional()
+      .describe(
+        'With mode=batter_multi_out, only cases where the same credited bowler appears on 2+ dismissals',
+      ),
+    minDismissals: z.number().int().min(2).max(10).optional().describe('Default 2'),
+    leagueId: z.number().int().optional().describe('IPL = 1'),
+    seasonId: z.number().int().optional(),
+    format: z.string().optional().describe('T20, ODI, Test'),
+    limit: z.number().int().min(1).max(50).optional().describe('Default 20'),
+  },
+  async (args) =>
+    jsonText(await apiGet(`/analytics/multi-dismissals${buildQuery(args)}`)),
 );
 
 return server;

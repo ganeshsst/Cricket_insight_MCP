@@ -39,6 +39,8 @@ typings
 !.env.local.example
 *.pem
 *.key
+**/auth0*secrets*.json
+**/auth0 secrets*.json
 
 # Package manager hygiene (this workspace uses pnpm-lock.yaml)
 package-lock.json
